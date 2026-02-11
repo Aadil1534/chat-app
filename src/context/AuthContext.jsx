@@ -5,6 +5,7 @@ import {
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   updateProfile,
+  sendPasswordResetEmail,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
@@ -40,12 +41,17 @@ export function AuthProvider({ children }) {
     return signInWithEmailAndPassword(auth, email, password);
   };
 
-  const signUp = async (email, password, displayName) => {
+  const signUp = async ({ firstName, lastName, mobileNumber, email, password }) => {
+    const displayName = `${firstName} ${lastName}`.trim();
     const { user } = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(user, { displayName });
     await setDoc(doc(db, 'users', user.uid), {
+      firstName,
+      lastName,
       name: displayName,
+      mobileNumber,
       email,
+      about: '',
       photoURL: null,
       lastSeen: null,
       online: true,
@@ -53,11 +59,15 @@ export function AuthProvider({ children }) {
     return user;
   };
 
+  const resetPassword = (email) => {
+    return sendPasswordResetEmail(auth, email);
+  };
+
   const signOut = () => {
     return firebaseSignOut(auth);
   };
 
-  const value = { currentUser, signIn, signUp, signOut };
+  const value = { currentUser, signIn, signUp, signOut, resetPassword };
 
   return (
     <AuthContext.Provider value={value}>

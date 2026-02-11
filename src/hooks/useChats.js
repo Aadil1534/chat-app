@@ -12,14 +12,24 @@ import { db } from '../lib/firebase';
 
 export function useChats(currentUserId) {
   const [chats, setChats] = useState([]);
+  const [pinnedChatIds, setPinnedChatIds] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!currentUserId) {
       setChats([]);
+      setPinnedChatIds([]);
       setLoading(false);
       return;
     }
+
+    // Fetch user's pinned chats
+    const userRef = doc(db, 'users', currentUserId);
+    const unsubscribeUser = onSnapshot(userRef, (snap) => {
+      if (snap.exists()) {
+        setPinnedChatIds(snap.data().pinnedChats || []);
+      }
+    });
 
     const q = query(
       collection(db, 'chats'),
@@ -32,13 +42,23 @@ export function useChats(currentUserId) {
       async (snapshot) => {
         const chatPromises = snapshot.docs.map(async (docSnap) => {
           const data = docSnap.data();
-          const otherUserId = data.participants.find((id) => id !== currentUserId);
-          let otherUser = { uid: otherUserId, name: 'Unknown' };
+          const isGroup = data.isGroup && data.participants?.length > 2;
 
-          if (otherUserId) {
-            const userSnap = await getDoc(doc(db, 'users', otherUserId));
-            if (userSnap.exists()) {
-              otherUser = { uid: otherUserId, ...userSnap.data() };
+          let otherUser = { name: 'Unknown' };
+          if (isGroup) {
+            otherUser = {
+              name: data.groupName || 'Group',
+              photoURL: data.groupImageURL,
+              isGroup: true,
+              participants: data.participants || [],
+            };
+          } else {
+            const otherUserId = data.participants?.find((id) => id !== currentUserId);
+            if (otherUserId) {
+              const userSnap = await getDoc(doc(db, 'users', otherUserId));
+              otherUser = userSnap.exists()
+                ? { uid: otherUserId, ...userSnap.data() }
+                : { uid: otherUserId, name: 'Unknown' };
             }
           }
 
@@ -49,6 +69,7 @@ export function useChats(currentUserId) {
             ...data,
             otherUser,
             unreadCount,
+            isGroup,
           };
         });
 
@@ -62,8 +83,11 @@ export function useChats(currentUserId) {
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      unsubscribeUser();
+    };
   }, [currentUserId]);
 
-  return { chats, loading };
+  return { chats, pinnedChatIds, loading };
 }

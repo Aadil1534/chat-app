@@ -8,6 +8,7 @@ import {
   updateDoc,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { markMessageSeen } from '../lib/chatUtils';
 
 export function useMessages(chatId, currentUserId) {
   const [messages, setMessages] = useState([]);
@@ -49,6 +50,15 @@ export function useMessages(chatId, currentUserId) {
         updateDoc(chatRef, {
           [`unreadCounts.${currentUserId}`]: 0,
         }).catch(() => {});
+
+        // Mark incoming messages as seen (add currentUser to seenBy)
+        const toMark = snapshot.docs
+          .filter((d) => d.data().senderId !== currentUserId)
+          .filter((d) => !(d.data().seenBy || []).includes(currentUserId))
+          .slice(-20);
+        toMark.forEach((d) => {
+          markMessageSeen(chatId, d.id, currentUserId).catch(() => {});
+        });
       },
       (err) => {
         console.error('Messages listener error:', err);

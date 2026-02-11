@@ -2,17 +2,19 @@ import { doc, getDoc, collection, query, orderBy, getDocs } from 'firebase/fires
 import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 
-export default function ContactInfo({ selectedChat, currentUser, otherUser }) {
+export default function ContactInfo({ selectedChat, currentUser, otherUser, onOpenSettings }) {
   const [userData, setUserData] = useState(null);
   const [mediaUrls, setMediaUrls] = useState([]);
 
   useEffect(() => {
-    if (otherUser?.uid) {
+    if (otherUser?.uid && !otherUser?.isGroup) {
       getDoc(doc(db, 'users', otherUser.uid)).then((snap) => {
         if (snap.exists()) setUserData(snap.data());
       });
+    } else {
+      setUserData(otherUser?.isGroup ? { name: otherUser.name, photoURL: otherUser.photoURL } : null);
     }
-  }, [otherUser?.uid]);
+  }, [otherUser?.uid, otherUser?.isGroup]);
 
   useEffect(() => {
     if (!selectedChat?.id) {
@@ -34,7 +36,7 @@ export default function ContactInfo({ selectedChat, currentUser, otherUser }) {
 
   if (!selectedChat) {
     return (
-      <div className="w-[300px] bg-white border-l border-gray-200 flex flex-col items-center justify-center text-gray-500">
+      <div className="w-[300px] bg-white dark:bg-slate-800 border-l border-gray-200 dark:border-slate-700 flex flex-col items-center justify-center text-gray-500 dark:text-slate-400 transition-colors">
         <p className="text-sm">Select a chat to view contact info</p>
       </div>
     );
@@ -45,23 +47,23 @@ export default function ContactInfo({ selectedChat, currentUser, otherUser }) {
   const isOnline = userData?.online ?? false;
 
   return (
-    <div className="w-[300px] bg-white border-l border-gray-200 flex flex-col overflow-y-auto">
-      <div className="p-6 flex flex-col items-center border-b border-gray-100">
-        <div className="w-24 h-24 rounded-full bg-gray-200 overflow-hidden mb-4">
+    <div className="w-[300px] bg-white dark:bg-slate-800 border-l border-gray-200 dark:border-slate-700 flex flex-col overflow-y-auto transition-colors">
+      <div className="p-6 flex flex-col items-center border-b border-gray-100 dark:border-slate-700">
+        <div className="w-24 h-24 rounded-full bg-gray-200 dark:bg-slate-600 overflow-hidden mb-4">
           {photoURL ? (
             <img src={photoURL} alt="" className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-2xl font-semibold text-gray-500">
+            <div className="w-full h-full flex items-center justify-center text-2xl font-semibold text-gray-500 dark:text-slate-300">
               {displayName.charAt(0).toUpperCase()}
             </div>
           )}
         </div>
-        <h3 className="font-semibold text-gray-800 text-lg">{displayName}</h3>
-        <p className="text-sm text-gray-500">+1 234 567 8900</p>
+        <h3 className="font-semibold text-gray-800 dark:text-white text-lg">{displayName}</h3>
+        <p className="text-sm text-gray-500 dark:text-slate-400">{userData?.mobileNumber || 'No phone'}</p>
         <div className="flex gap-2 mt-4">
-          <button className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors">
+          <button className="p-2 rounded-full bg-gray-100 dark:bg-slate-600 hover:bg-gray-200 dark:hover:bg-slate-500 transition-colors">
             <svg
-              className="w-5 h-5 text-gray-600"
+              className="w-5 h-5 text-gray-600 dark:text-slate-300"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -74,9 +76,9 @@ export default function ContactInfo({ selectedChat, currentUser, otherUser }) {
               />
             </svg>
           </button>
-          <button className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors">
+          <button className="p-2 rounded-full bg-gray-100 dark:bg-slate-600 hover:bg-gray-200 dark:hover:bg-slate-500 transition-colors">
             <svg
-              className="w-5 h-5 text-gray-600"
+              className="w-5 h-5 text-gray-600 dark:text-slate-300"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -92,15 +94,15 @@ export default function ContactInfo({ selectedChat, currentUser, otherUser }) {
         </div>
       </div>
 
-      <div className="p-4 border-b border-gray-100">
-        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+      <div className="p-4 border-b border-gray-100 dark:border-slate-700">
+        <h4 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">
           About
         </h4>
-        <p className="text-sm text-gray-700">Hey there! I am using ChatApp.</p>
+        <p className="text-sm text-gray-700 dark:text-slate-300">{userData?.about || 'Hey there! I am using ChatApp.'}</p>
       </div>
 
-      <div className="p-4 border-b border-gray-100">
-        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+      <div className="p-4 border-b border-gray-100 dark:border-slate-700">
+        <h4 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-3">
           Media, Links & Docs
         </h4>
         <div className="flex gap-2 flex-wrap">
@@ -114,15 +116,15 @@ export default function ContactInfo({ selectedChat, currentUser, otherUser }) {
               />
             ))
           ) : (
-            <p className="text-sm text-gray-400">No media yet</p>
+            <p className="text-sm text-gray-400 dark:text-slate-500">No media yet</p>
           )}
         </div>
       </div>
 
-      <div className="p-4 border-b border-gray-100">
-        <button className="flex items-center gap-3 w-full text-left hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors">
+      <div className="p-4 border-b border-gray-100 dark:border-slate-700">
+        <button className="flex items-center gap-3 w-full text-left hover:bg-gray-50 dark:hover:bg-slate-700 rounded-lg p-2 -m-2 transition-colors">
           <svg
-            className="w-5 h-5 text-gray-500"
+            className="w-5 h-5 text-gray-500 dark:text-slate-400"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -134,19 +136,30 @@ export default function ContactInfo({ selectedChat, currentUser, otherUser }) {
               d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
             />
           </svg>
-          <span className="text-sm text-gray-700">Starred Messages</span>
+          <span className="text-sm text-gray-700 dark:text-slate-300">Starred Messages</span>
         </button>
       </div>
 
       <div className="p-4">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-700">Mute Notifications</span>
+          <span className="text-sm text-gray-700 dark:text-slate-300">Mute Notifications</span>
           <label className="relative inline-flex items-center cursor-pointer">
             <input type="checkbox" className="sr-only peer" />
             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#6C3EF4]"></div>
           </label>
         </div>
       </div>
+      {onOpenSettings && (
+        <div className="p-4 border-t dark:border-slate-700">
+          <button
+            onClick={onOpenSettings}
+            className="flex items-center gap-3 w-full text-left hover:bg-gray-50 dark:hover:bg-slate-700 rounded-lg p-3 transition-colors"
+          >
+            <span className="text-xl">⚙️</span>
+            <span className="text-sm text-gray-700 dark:text-slate-300">Settings</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

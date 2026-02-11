@@ -1,15 +1,51 @@
-# Chat App
+# WeChat-Style Chat App
 
-A real-time chat application built with React, Firebase v9, and Tailwind CSS. WhatsApp/Telegram style layout with Firebase Authentication, Firestore, and Storage.
+A real-time chat application built with React, Redux, Firebase v9, and Tailwind CSS. WeChat-inspired UI with authentication, admin dashboard, voice/video calls, group chat, and more.
 
 ## Features
 
-- **Firebase Authentication** - Email/password sign in and sign up
-- **Real-time Firestore** - Live chat messages with `onSnapshot`
-- **Text & Image messages** - Send text and images (Firebase Storage)
-- **Online/Offline status** - User presence tracking
-- **Unread message counter** - Badge on chat list items
-- **Chat list** - Ordered by last message timestamp
+### Auth & Registration
+- Login, Registration (First Name, Last Name, Mobile Number, Email, Password)
+- Forgot Password
+- Dark mode toggle on auth screens
+
+### Main Chat
+- Real-time one-to-one and group messaging (Firestore)
+- Message timestamps, read/delivered status (✓ ✓)
+- Emoji picker, image sharing (Firebase Storage)
+- Message delete (for self), starred messages
+- Typing area with emoji and attachment support
+
+### Profile & Contact
+- Profile picture upload
+- Edit name, about, phone number
+- Contact info panel (profile photo, name, phone, about, media, starred messages)
+
+### Voice & Video Calls
+- WebRTC one-to-one voice and video calls
+- Firebase Firestore signaling
+- Incoming call accept/decline
+
+### Group Chat
+- Create groups, add members
+- Group name and messaging
+- Group chat list display
+
+### Admin Dashboard
+- Admin login (`/admin/login`)
+- Groups table: Sr. No, Group Name, Project Name, No. of Employees, Actions (Edit, Delete)
+- Users table: view all users
+- Add Group, Edit Group, Delete Group
+
+### Settings
+- Settings sidebar: Profile, Notifications, Privacy, Security, Theme, Chat Wallpaper, Request Account Info, Keyboard Shortcuts, Help
+- Keyboard shortcuts modal (Cmd/Ctrl+P) with OS detection, ESC to close, focus trap
+
+### Dark Mode
+- Light & Dark themes with Redux
+- Toggle on login, main app sidebar
+- Theme persisted in localStorage
+- Smooth transitions
 
 ## Setup
 
@@ -19,75 +55,44 @@ A real-time chat application built with React, Firebase v9, and Tailwind CSS. Wh
 2. Enable **Authentication** (Email/Password provider)
 3. Create **Firestore Database**
 4. Create **Storage** bucket
-5. Copy your config and update `src/lib/firebase.js`:
+5. Update `src/lib/firebase.js` with your config
 
-```js
-const firebaseConfig = {
-  apiKey: 'YOUR_API_KEY',
-  authDomain: 'YOUR_PROJECT_ID.firebaseapp.com',
-  projectId: 'YOUR_PROJECT_ID',
-  storageBucket: 'YOUR_PROJECT_ID.appspot.com',
-  messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-  appId: 'YOUR_APP_ID',
-};
-```
+### 2. Admin Setup
 
-### 2. Firestore Index
+To grant admin access, add a document to the `admins` collection in Firestore:
 
-Create a composite index for the chats query. When you first run the app, Firebase will log an error with a link to auto-create the index. Or create manually:
+- Collection: `admins`
+- Document ID: the user's UID (from Firebase Auth)
+- Fields: any (e.g. `{ role: "admin" }`)
 
+### 3. Firestore Indexes
+
+Create a composite index for chats:
 - Collection: `chats`
 - Fields: `participants` (Array-contains), `lastMessageTime` (Descending)
 
-### 3. Deploy Rules
+Create index for incoming calls:
+- Collection: `calls`
+- Fields: `calleeId` (==), `status` (==)
+
+### 4. Deploy Rules
 
 ```bash
 firebase deploy
 ```
 
-Or copy `firestore.rules` and `storage.rules` to your Firebase project.
-
-### 4. Install & Run
+### 5. Install & Run
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Project Structure
-
-```
-chat-app/
-├── src/
-│   ├── components/
-│   │   ├── Login.jsx
-│   │   ├── Sidebar.jsx
-│   │   ├── ChatWindow.jsx
-│   │   ├── MessageBubble.jsx
-│   │   └── ContactInfo.jsx
-│   ├── context/
-│   │   └── AuthContext.jsx
-│   ├── hooks/
-│   │   ├── useChats.js
-│   │   ├── useMessages.js
-│   │   └── usePresence.js
-│   ├── lib/
-│   │   ├── firebase.js
-│   │   └── chatUtils.js
-│   ├── App.jsx
-│   ├── main.jsx
-│   └── index.css
-├── firestore.rules
-├── storage.rules
-└── package.json
-```
-
 ## Tech Stack
 
 - React 19 + Vite
-- Firebase v9 Modular SDK
-- Firestore (real-time)
-- Firebase Auth
-- Firebase Storage
+- Redux Toolkit
+- Firebase v9 Modular SDK (Auth, Firestore, Storage)
+- WebRTC (voice/video)
 - Tailwind CSS v4
-- React Router v6
+- React Router v7
