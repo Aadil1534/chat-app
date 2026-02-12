@@ -6,17 +6,12 @@ export function useKeyboardShortcuts({ onNewChat, onNewGroup, onSearch, onShortc
       const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
       const mod = isMac ? e.metaKey : e.ctrlKey;
 
-      if (mod && e.shiftKey && e.key === 'U') {
-        e.preventDefault();
-        // Mark as unread - would need chat context
-      }
-      if (mod && e.shiftKey && e.key === 'N') {
-        e.preventDefault();
-        onNewGroup?.();
-      }
       if (mod && e.key === 'n' && !e.shiftKey) {
         e.preventDefault();
         onNewChat?.();
+      }
+      if (mod && e.shiftKey && e.key === 'U') {
+        e.preventDefault();
       }
       if (mod && e.shiftKey && e.key === 'F') {
         e.preventDefault();
@@ -31,7 +26,7 @@ export function useKeyboardShortcuts({ onNewChat, onNewGroup, onSearch, onShortc
         onShortcuts?.();
       }
     },
-    [onNewChat, onNewGroup, onSearch, onShortcuts]
+    [onNewChat, onSearch, onShortcuts]
   );
 
   useEffect(() => {

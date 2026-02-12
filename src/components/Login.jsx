@@ -121,6 +121,11 @@ export default function Login() {
             Sign Up
           </Link>
         </p>
+        <p className={`mt-3 text-center text-sm ${subCls}`}>
+          <Link to="/admin/login" className="text-[#6C3EF4] font-medium hover:underline">
+            Admin Login
+          </Link>
+        </p>
       </div>
     </div>
   );

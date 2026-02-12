@@ -3,7 +3,6 @@ import {
   collection,
   query,
   where,
-  orderBy,
   onSnapshot,
   doc,
   getDoc,
@@ -13,28 +12,30 @@ import { db } from '../lib/firebase';
 export function useChats(currentUserId) {
   const [chats, setChats] = useState([]);
   const [pinnedChatIds, setPinnedChatIds] = useState([]);
+  const [archivedChatIds, setArchivedChatIds] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!currentUserId) {
       setChats([]);
       setPinnedChatIds([]);
+      setArchivedChatIds([]);
       setLoading(false);
       return;
     }
 
-    // Fetch user's pinned chats
     const userRef = doc(db, 'users', currentUserId);
     const unsubscribeUser = onSnapshot(userRef, (snap) => {
       if (snap.exists()) {
-        setPinnedChatIds(snap.data().pinnedChats || []);
+        const d = snap.data();
+        setPinnedChatIds(d.pinnedChats || []);
+        setArchivedChatIds(d.archivedChats || []);
       }
     });
 
     const q = query(
       collection(db, 'chats'),
       where('participants', 'array-contains', currentUserId),
-      orderBy('lastMessageTime', 'desc')
     );
 
     const unsubscribe = onSnapshot(
@@ -42,7 +43,7 @@ export function useChats(currentUserId) {
       async (snapshot) => {
         const chatPromises = snapshot.docs.map(async (docSnap) => {
           const data = docSnap.data();
-          const isGroup = data.isGroup && data.participants?.length > 2;
+          const isGroup = data.isGroup === true;
 
           let otherUser = { name: 'Unknown' };
           if (isGroup) {
@@ -73,7 +74,19 @@ export function useChats(currentUserId) {
           };
         });
 
-        const chatList = await Promise.all(chatPromises);
+        let chatList = await Promise.all(chatPromises);
+
+        // Sort chats by lastMessageTime (latest first) on the client
+        chatList = chatList.sort((a, b) => {
+          const toMillis = (ts) => {
+            if (!ts) return 0;
+            if (typeof ts.toMillis === 'function') return ts.toMillis();
+            if (ts.seconds) return ts.seconds * 1000;
+            return 0;
+          };
+          return toMillis(b.lastMessageTime) - toMillis(a.lastMessageTime);
+        });
+
         setChats(chatList);
         setLoading(false);
       },
@@ -89,5 +102,5 @@ export function useChats(currentUserId) {
     };
   }, [currentUserId]);
 
-  return { chats, pinnedChatIds, loading };
+  return { chats, pinnedChatIds, archivedChatIds, loading };
 }

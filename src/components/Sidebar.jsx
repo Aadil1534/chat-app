@@ -4,7 +4,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useChats } from '../hooks/useChats';
 import { usePinnedChatHistory } from '../hooks/usePinnedChatHistory';
-import { getOrCreateChat, createGroupChat, togglePinChat } from '../lib/chatUtils';
+import { getOrCreateChat, togglePinChat, toggleArchiveChat } from '../lib/chatUtils';
 import { selectDarkMode, toggleTheme } from '../store/slices/themeSlice';
 import ProfileEdit from './ProfileEdit';
 import PinnedChatItem from './PinnedChatItem';
@@ -17,39 +17,40 @@ export default function Sidebar({
   onOpenSettings,
   showNewChat,
   onShowNewChat,
-  showNewGroup,
-  onShowNewGroup,
 }) {
   const darkMode = useSelector(selectDarkMode);
   const dispatch = useDispatch();
   const [search, setSearch] = useState('');
   const showNewChatActual = showNewChat ?? false;
-  const showNewGroupActual = showNewGroup ?? false;
   const setShowNewChatActual = onShowNewChat ?? (() => {});
-  const setShowNewGroupActual = onShowNewGroup ?? (() => {});
   const [showProfileEdit, setShowProfileEdit] = useState(false);
   const [allUsers, setAllUsers] = useState([]);
-  const [groupName, setGroupName] = useState('');
-  const [selectedMembers, setSelectedMembers] = useState([]);
-  const { chats, pinnedChatIds, loading } = useChats(currentUser?.uid);
+  const [contextMenu, setContextMenu] = useState(null);
+  const { chats, pinnedChatIds, archivedChatIds, loading } = useChats(currentUser?.uid);
 
   const filteredChats = chats.filter((chat) => {
     const name = chat.otherUser?.name || '';
     return name.toLowerCase().includes(search.toLowerCase());
   });
 
-  const pinnedChats = chats.filter((chat) => pinnedChatIds.includes(chat.id));
-  const unpinnedChats = chats.filter((chat) => !pinnedChatIds.includes(chat.id));
+  const pinnedChats = chats.filter((c) => pinnedChatIds.includes(c.id) && !archivedChatIds.includes(c.id));
+  const activeChats = chats.filter((c) => !archivedChatIds.includes(c.id));
+  const archivedChats = chats.filter((c) => archivedChatIds.includes(c.id));
 
   const handleTogglePin = async (e, chatId) => {
-    e.stopPropagation();
-    if (currentUser?.uid) {
-      await togglePinChat(chatId, currentUser.uid);
-    }
+    e?.stopPropagation();
+    if (currentUser?.uid) await togglePinChat(chatId, currentUser.uid);
+    setContextMenu(null);
+  };
+
+  const handleToggleArchive = async (e, chatId) => {
+    e?.stopPropagation();
+    if (currentUser?.uid) await toggleArchiveChat(chatId, currentUser.uid);
+    setContextMenu(null);
   };
 
   useEffect(() => {
-    if ((showNewChatActual || showNewGroupActual) && currentUser) {
+    if (showNewChatActual && currentUser) {
       getDocs(collection(db, 'users')).then((snap) => {
         const users = snap.docs
           .map((d) => ({ uid: d.id, ...d.data() }))
@@ -57,33 +58,13 @@ export default function Sidebar({
         setAllUsers(users);
       });
     }
-  }, [showNewChatActual, showNewGroupActual, currentUser]);
+  }, [showNewChatActual, currentUser]);
 
   const handleNewChat = async (otherUserId) => {
     const chatId = await getOrCreateChat(currentUser.uid, otherUserId);
     const otherUserData = allUsers.find((u) => u.uid === otherUserId);
     onSelectChat({ id: chatId, otherUser: otherUserData || { uid: otherUserId } });
     setShowNewChatActual(false);
-  };
-
-  const handleCreateGroup = async (e) => {
-    e.preventDefault();
-    if (!groupName.trim() || selectedMembers.length === 0) return;
-    const chatId = await createGroupChat(currentUser.uid, groupName.trim(), null, selectedMembers);
-    onSelectChat({
-      id: chatId,
-      otherUser: { name: groupName, isGroup: true, participants: [currentUser.uid, ...selectedMembers] },
-      isGroup: true,
-    });
-    setShowNewGroupActual(false);
-    setGroupName('');
-    setSelectedMembers([]);
-  };
-
-  const toggleMember = (uid) => {
-    setSelectedMembers((prev) =>
-      prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
-    );
   };
 
   const formatTime = (timestamp) => {
@@ -97,7 +78,10 @@ export default function Sidebar({
   };
 
   return (
-    <div className="w-[280px] bg-[#f4f5f7] dark:bg-slate-800 flex flex-col h-full border-r border-gray-200 dark:border-slate-700 transition-colors">
+    <div
+      className="w-[280px] bg-[#f4f5f7] dark:bg-slate-800 flex flex-col h-full border-r border-gray-200 dark:border-slate-700 transition-colors"
+      onClick={() => setContextMenu(null)}
+    >
       <div className="p-4 border-b border-gray-200 dark:border-slate-700 flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Chats</h2>
@@ -109,15 +93,6 @@ export default function Sidebar({
               aria-label="Toggle dark mode"
             >
               {darkMode ? <span className="text-base">☀️</span> : <span className="text-base">🌙</span>}
-            </button>
-            <button
-              onClick={() => setShowNewGroupActual(true)}
-              className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
-              title="New group"
-            >
-              <svg className="w-5 h-5 text-gray-600 dark:text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
             </button>
             <button
               onClick={() => setShowNewChatActual(true)}
@@ -137,9 +112,13 @@ export default function Sidebar({
           onChange={(e) => setSearch(e.target.value)}
           className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-lg text-sm text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#6C3EF4]/30 focus:border-[#6C3EF4]"
         />
-        <a href="#" className="inline-block mt-3 text-sm text-[#6C3EF4] hover:underline">
-          Archive
-        </a>
+        <button
+          type="button"
+          onClick={() => setContextMenu(contextMenu === 'archive' ? null : 'archive')}
+          className={`inline-block mt-3 text-sm ${contextMenu === 'archive' ? 'font-semibold' : ''} text-[#6C3EF4] hover:underline`}
+        >
+          {contextMenu === 'archive' ? 'Chats' : 'Archive'}
+        </button>
       </div>
 
       {pinnedChats.length > 0 && (
@@ -163,15 +142,69 @@ export default function Sidebar({
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="p-4 text-center text-gray-500 dark:text-slate-400 text-sm">Loading chats...</div>
+        ) : contextMenu === 'archive' ? (
+          <div className="py-2">
+            <h3 className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase">Archived</h3>
+            {archivedChats.filter((c) => (c.otherUser?.name || '').toLowerCase().includes(search.toLowerCase())).map((chat) => (
+              <div
+                key={chat.id}
+                onClick={() => onSelectChat(chat)}
+                onContextMenu={(e) => { e.preventDefault(); }}
+                className={`flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-200/80 dark:hover:bg-slate-600/50 ${selectedChatId === chat.id ? 'bg-gray-200 dark:bg-slate-600' : ''}`}
+              >
+                <div className="w-12 h-12 rounded-full bg-gray-300 dark:bg-slate-600 overflow-hidden flex-shrink-0">
+                  {chat.otherUser?.photoURL ? <img src={chat.otherUser.photoURL} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-lg font-semibold text-gray-500 dark:text-slate-300">{(chat.otherUser?.name || '?').charAt(0).toUpperCase()}</div>}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium text-gray-800 dark:text-white truncate block">{chat.otherUser?.name || 'Unknown'}</span>
+                  <p className="text-sm text-gray-500 dark:text-slate-400 truncate">{chat.lastMessage || 'No messages'}</p>
+                </div>
+                <button onClick={(e) => { e.stopPropagation(); handleToggleArchive(e, chat.id); }} className="text-xs text-[#6C3EF4] hover:underline">Unarchive</button>
+              </div>
+            ))}
+            {archivedChats.length === 0 && <p className="px-4 py-4 text-sm text-gray-400">No archived chats</p>}
+            <button onClick={() => setContextMenu(null)} className="px-4 py-2 mt-2 text-sm text-[#6C3EF4] hover:underline">Back to chats</button>
+          </div>
         ) : (
           <div className="py-2">
-            {filteredChats.filter((chat) => !pinnedChatIds.includes(chat.id)).map((chat) => {
+            {activeChats.some((c) => c.isGroup) && <h3 className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase">Groups</h3>}
+            {activeChats.filter((c) => c.isGroup && !pinnedChatIds.includes(c.id)).filter((c) => (c.otherUser?.name || '').toLowerCase().includes(search.toLowerCase())).map((chat) => (
+              <div
+                key={chat.id}
+                onClick={() => onSelectChat(chat)}
+                onContextMenu={(e) => { e.preventDefault(); setContextMenu(contextMenu?.id === chat.id ? null : { id: chat.id }); }}
+                className={`flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-gray-200/80 dark:hover:bg-slate-600/50 relative ${selectedChatId === chat.id ? 'bg-gray-200 dark:bg-slate-600' : ''}`}
+              >
+                <div className="relative flex-shrink-0">
+                  <div className="w-12 h-12 rounded-full bg-gray-300 dark:bg-slate-600 overflow-hidden">
+                    {chat.otherUser?.photoURL ? <img src={chat.otherUser.photoURL} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-lg font-semibold text-gray-500 dark:text-slate-300">{(chat.otherUser?.name || '?').charAt(0).toUpperCase()}</div>}
+                  </div>
+                  {chat.unreadCount > 0 && <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#6C3EF4] rounded-full text-[10px] text-white flex items-center justify-center font-medium">{chat.unreadCount > 9 ? '9+' : chat.unreadCount}</span>}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="font-medium text-gray-800 dark:text-white truncate">{chat.otherUser?.name || 'Unknown'}</span>
+                    <span className="text-xs text-gray-500 dark:text-slate-400 flex-shrink-0">{formatTime(chat.lastMessageTime)}</span>
+                  </div>
+                  <p className="text-sm text-gray-500 dark:text-slate-400 truncate">{chat.lastMessage || 'No messages yet'}</p>
+                </div>
+                {contextMenu?.id === chat.id && (
+                  <div onClick={(e) => e.stopPropagation()} className="absolute right-2 top-12 bg-white dark:bg-slate-700 rounded-lg shadow-lg py-1 z-50 min-w-[120px] border dark:border-slate-600">
+                    <button onClick={(e) => handleTogglePin(e, chat.id)} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-slate-600">Pin</button>
+                    <button onClick={(e) => handleToggleArchive(e, chat.id)} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-slate-600">Archive</button>
+                  </div>
+                )}
+              </div>
+            ))}
+            {activeChats.some((c) => !c.isGroup) && <h3 className="px-4 py-2 mt-2 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase">Recent</h3>}
+            {activeChats.filter((c) => !c.isGroup && !pinnedChatIds.includes(c.id)).filter((c) => (c.otherUser?.name || '').toLowerCase().includes(search.toLowerCase())).map((chat) => {
               const isActive = selectedChatId === chat.id;
               return (
                 <div
                   key={chat.id}
                   onClick={() => onSelectChat(chat)}
-                  className={`flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-gray-200/80 dark:hover:bg-slate-600/50 ${
+                  onContextMenu={(e) => { e.preventDefault(); setContextMenu(contextMenu?.id === chat.id ? null : { id: chat.id }); }}
+                  className={`flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-gray-200/80 dark:hover:bg-slate-600/50 relative ${
                     isActive ? 'bg-gray-200 dark:bg-slate-600' : ''
                   }`}
                 >
@@ -219,6 +252,12 @@ export default function Sidebar({
                       {chat.lastMessage || 'No messages yet'}
                     </p>
                   </div>
+                  {contextMenu?.id === chat.id && (
+                    <div onClick={(e) => e.stopPropagation()} className="absolute right-2 top-12 bg-white dark:bg-slate-700 rounded-lg shadow-lg py-1 z-50 min-w-[120px] border dark:border-slate-600">
+                      <button onClick={(e) => handleTogglePin(e, chat.id)} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-slate-600">Pin</button>
+                      <button onClick={(e) => handleToggleArchive(e, chat.id)} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-slate-600">Archive</button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -265,62 +304,6 @@ export default function Sidebar({
               user={{ ...currentUser, uid: currentUser.uid, displayName: currentUser.displayName, photoURL: currentUser.photoURL }}
               onClose={() => setShowProfileEdit(false)}
             />
-          </div>
-        </div>
-      )}
-
-      {showNewGroupActual && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowNewGroupActual(false)}>
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md mx-4 max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <form onSubmit={handleCreateGroup}>
-              <div className="p-4 border-b border-gray-200 dark:border-slate-700">
-                <h3 className="font-semibold text-gray-800 dark:text-white">New Group</h3>
-                <input
-                  value={groupName}
-                  onChange={(e) => setGroupName(e.target.value)}
-                  placeholder="Group name"
-                  className="w-full mt-2 px-4 py-2 border dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white"
-                  required
-                />
-              </div>
-              <div className="overflow-y-auto max-h-64 p-2">
-                {allUsers.map((user) => (
-                  <button
-                    key={user.uid}
-                    type="button"
-                    onClick={() => toggleMember(user.uid)}
-                    className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors text-left ${
-                      selectedMembers.includes(user.uid) ? 'bg-[#6C3EF4]/20' : 'hover:bg-gray-100 dark:hover:bg-slate-600'
-                    }`}
-                  >
-                    <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-slate-600 overflow-hidden">
-                      {user.photoURL ? (
-                        <img src={user.photoURL} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-500 dark:text-slate-300 font-medium">
-                          {(user.name || '?').charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-800 dark:text-white">{user.name || 'Unknown'}</p>
-                      <p className="text-sm text-gray-500 dark:text-slate-400">{user.email}</p>
-                    </div>
-                    {selectedMembers.includes(user.uid) && (
-                      <span className="text-[#6C3EF4]">✓</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-              <div className="p-4 border-t dark:border-slate-700 flex gap-2">
-                <button type="submit" className="flex-1 py-2 bg-[#6C3EF4] text-white rounded-lg hover:bg-[#5b2ed9]">
-                  Create Group
-                </button>
-                <button type="button" onClick={() => setShowNewGroupActual(false)} className="flex-1 py-2 border dark:border-slate-600 rounded-lg">
-                  Cancel
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

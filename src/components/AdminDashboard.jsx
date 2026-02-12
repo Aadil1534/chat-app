@@ -2,11 +2,17 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-  getGroups,
+  getAdminGroups,
   getUsers,
-  createGroup,
-  updateGroup,
-  deleteGroup,
+  createAdminGroup,
+  updateAdminGroup,
+  deleteAdminGroup,
+  addMemberToAdminGroup,
+  removeMemberFromAdminGroup,
+  deleteUser,
+  assignAdmin,
+  revokeAdmin,
+  updateUserByAdmin,
 } from '../lib/adminUtils';
 
 export default function AdminDashboard() {
@@ -18,21 +24,28 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [showAddGroup, setShowAddGroup] = useState(false);
   const [editingGroup, setEditingGroup] = useState(null);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [editingUser, setEditingUser] = useState(null);
   const [form, setForm] = useState({
     groupName: '',
     projectName: '',
-    employeeCount: 0,
     memberIds: [],
+  });
+  const [userForm, setUserForm] = useState({
+    name: '',
+    email: '',
+    mobileNumber: '',
+    about: '',
   });
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [g, u] = await Promise.all([getGroups(), getUsers()]);
+      const [g, u] = await Promise.all([getAdminGroups(), getUsers()]);
       setGroups(g);
       setUsers(u);
     } catch (err) {
-      console.error(err);
+      console.error('Failed to load data:', err);
     } finally {
       setLoading(false);
     }
@@ -42,38 +55,84 @@ export default function AdminDashboard() {
     loadData();
   }, []);
 
-  const handleAddGroup = async (e) => {
-    e.preventDefault();
-    try {
-      await createGroup(form);
-      setShowAddGroup(false);
-      setForm({ groupName: '', projectName: '', employeeCount: 0, memberIds: [] });
-      loadData();
-    } catch (err) {
-      console.error(err);
-    }
+  const resetForm = () => {
+    setForm({ groupName: '', projectName: '', memberIds: [] });
+    setShowAddGroup(false);
+    setEditingGroup(null);
+    setSelectedGroup(null);
   };
 
-  const handleUpdateGroup = async (e) => {
+  const resetUserForm = () => {
+    setUserForm({ name: '', email: '', mobileNumber: '', about: '' });
+    setEditingUser(null);
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!editingGroup) return;
     try {
-      await updateGroup(editingGroup.id, form);
-      setEditingGroup(null);
-      setForm({ groupName: '', projectName: '', employeeCount: 0, memberIds: [] });
+      if (editingGroup) {
+        await updateAdminGroup(editingGroup.id, {
+          groupName: form.groupName,
+          projectName: form.projectName,
+        });
+      } else {
+        await createAdminGroup(currentUser.uid, {
+          groupName: form.groupName,
+          projectName: form.projectName,
+          memberIds: form.memberIds,
+        });
+      }
+      resetForm();
       loadData();
     } catch (err) {
-      console.error(err);
+      console.error('Submit error:', err);
     }
   };
 
   const handleDeleteGroup = async (id) => {
-    if (!confirm('Delete this group?')) return;
+    if (!window.confirm('Delete this group?')) return;
     try {
-      await deleteGroup(id);
+      await deleteAdminGroup(id);
+      resetForm();
       loadData();
     } catch (err) {
-      console.error(err);
+      console.error('Delete error:', err);
+    }
+  };
+
+  const handleDeleteUser = async (uid) => {
+    if (!window.confirm('Delete this user? Their Firestore data will be removed.')) return;
+    try {
+      await deleteUser(uid);
+      resetUserForm();
+      loadData();
+    } catch (err) {
+      console.error('Delete user error:', err);
+    }
+  };
+
+  const handleToggleAdmin = async (uid, currentlyAdmin) => {
+    try {
+      if (currentlyAdmin) {
+        await revokeAdmin(uid);
+      } else {
+        await assignAdmin(uid);
+      }
+      loadData();
+    } catch (err) {
+      console.error('Toggle admin error:', err);
+    }
+  };
+
+  const handleSaveUser = async (e) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    try {
+      await updateUserByAdmin(editingUser.uid, userForm);
+      resetUserForm();
+      loadData();
+    } catch (err) {
+      console.error('Update user error:', err);
     }
   };
 
@@ -82,103 +141,127 @@ export default function AdminDashboard() {
     setForm({
       groupName: g.groupName || '',
       projectName: g.projectName || '',
-      employeeCount: g.employeeCount ?? 0,
-      memberIds: g.memberIds || [],
+      memberIds: g.participants || [],
+    });
+    setSelectedGroup(null);
+  };
+
+  const openGroupDetail = (g) => {
+    setSelectedGroup(g);
+    setEditingGroup(null);
+  };
+
+  const openEditUser = (u) => {
+    setEditingUser(u);
+    setUserForm({
+      name: u.name || '',
+      email: u.email || '',
+      mobileNumber: u.mobileNumber || '',
+      about: u.about || '',
     });
   };
 
+  const handleAddMember = async (userId) => {
+    if (!selectedGroup?.id) return;
+    try {
+      await addMemberToAdminGroup(selectedGroup.id, userId);
+      loadData();
+      setSelectedGroup((prev) => ({
+        ...prev,
+        participants: [...(prev?.participants || []), userId],
+      }));
+    } catch (err) {
+      console.error('Add member error:', err);
+    }
+  };
+
+  const handleRemoveMember = async (userId) => {
+    if (!selectedGroup?.id) return;
+    try {
+      await removeMemberFromAdminGroup(selectedGroup.id, userId);
+      loadData();
+      setSelectedGroup((prev) => ({
+        ...prev,
+        participants: (prev?.participants || []).filter((id) => id !== userId),
+      }));
+    } catch (err) {
+      console.error('Remove member error:', err);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-900">
-      <header className="h-14 px-6 flex items-center justify-between bg-white dark:bg-slate-800 border-b dark:border-slate-700">
-        <h1 className="text-lg font-semibold text-gray-800 dark:text-white">
-          Admin Dashboard
-        </h1>
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-900 flex flex-col">
+      <header className="h-14 px-6 flex items-center justify-between bg-white dark:bg-slate-800 border-b dark:border-slate-700 shrink-0">
+        <h1 className="text-lg font-bold text-gray-800 dark:text-white">Admin Dashboard</h1>
         <div className="flex items-center gap-4">
           <button
             onClick={() => setShowAddGroup(true)}
-            className="px-4 py-2 bg-[#6C3EF4] text-white rounded-lg hover:bg-[#5b2ed9] transition-colors"
+            className="px-4 py-2 bg-[#6C3EF4] text-white rounded-lg hover:bg-[#5b2ed9] transition-all font-medium text-sm"
           >
-            Add Group
+            + Add Group
           </button>
           <button
-            onClick={() => {
-              signOut();
-              navigate('/login');
-            }}
-            className="text-gray-600 dark:text-slate-300 hover:underline"
+            onClick={() => { signOut(); navigate('/login'); }}
+            className="text-gray-500 dark:text-slate-400 hover:text-red-500 text-sm font-medium"
           >
             Sign Out
           </button>
         </div>
       </header>
 
-      <div className="flex">
-        <aside className="w-48 p-4 border-r dark:border-slate-700 bg-white dark:bg-slate-800">
-          <nav className="space-y-1">
-            <button
-              onClick={() => setActiveTab('groups')}
-              className={`w-full text-left px-4 py-2 rounded-lg ${
-                activeTab === 'groups'
-                  ? 'bg-[#6C3EF4]/20 text-[#6C3EF4]'
-                  : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
-              }`}
-            >
-              Groups
-            </button>
-            <button
-              onClick={() => setActiveTab('users')}
-              className={`w-full text-left px-4 py-2 rounded-lg ${
-                activeTab === 'users'
-                  ? 'bg-[#6C3EF4]/20 text-[#6C3EF4]'
-                  : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
-              }`}
-            >
-              Users
-            </button>
+      <div className="flex flex-1 overflow-hidden">
+        <aside className="w-56 p-4 border-r dark:border-slate-700 bg-white dark:bg-slate-800">
+          <nav className="space-y-2">
+            {['groups', 'users'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => { setActiveTab(tab); setSelectedGroup(null); setEditingUser(null); }}
+                className={`w-full text-left px-4 py-2.5 rounded-xl capitalize font-medium transition-colors ${
+                  activeTab === tab
+                    ? 'bg-[#6C3EF4]/10 text-[#6C3EF4]'
+                    : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
           </nav>
         </aside>
 
-        <main className="flex-1 p-6 overflow-auto">
+        <main className="flex-1 p-6 overflow-y-auto">
           {activeTab === 'groups' && (
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow border dark:border-slate-700 overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b dark:border-slate-700">
-                    <th className="text-left p-4 text-sm font-semibold text-gray-600 dark:text-slate-400">Sr. No</th>
-                    <th className="text-left p-4 text-sm font-semibold text-gray-600 dark:text-slate-400">Group Name</th>
-                    <th className="text-left p-4 text-sm font-semibold text-gray-600 dark:text-slate-400">Project Name</th>
-                    <th className="text-left p-4 text-sm font-semibold text-gray-600 dark:text-slate-400">No. of Employees</th>
-                    <th className="text-left p-4 text-sm font-semibold text-gray-600 dark:text-slate-400">Actions</th>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border dark:border-slate-700 overflow-hidden">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-gray-50 dark:bg-slate-700/50">
+                  <tr>
+                    <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400">Sr. No</th>
+                    <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400">Group Name</th>
+                    <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400">Project</th>
+                    <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400">Members</th>
+                    <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400 text-center">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y dark:divide-slate-700">
                   {loading ? (
-                    <tr>
-                      <td colSpan={5} className="p-8 text-center text-gray-500">Loading...</td>
-                    </tr>
+                    <tr><td colSpan={5} className="p-12 text-center text-gray-400 italic">Fetching data...</td></tr>
                   ) : (
                     groups.map((g, i) => (
-                      <tr key={g.id} className="border-b dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/50">
-                        <td className="p-4 text-gray-800 dark:text-slate-200">{i + 1}</td>
-                        <td className="p-4 text-gray-800 dark:text-slate-200">{g.groupName || '-'}</td>
-                        <td className="p-4 text-gray-800 dark:text-slate-200">{g.projectName || '-'}</td>
-                        <td className="p-4 text-gray-800 dark:text-slate-200">{g.employeeCount ?? 0}</td>
+                      <tr key={g.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors">
+                        <td className="p-4 text-gray-700 dark:text-slate-300 font-medium">{i + 1}</td>
                         <td className="p-4">
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => openEdit(g)}
-                              className="px-2 py-1 text-xs font-medium text-[#6C3EF4] hover:underline"
-                              title="View/Edit"
-                            >
-                              E
-                            </button>
-                            <button
-                              onClick={() => handleDeleteGroup(g.id)}
-                              className="px-2 py-1 text-xs font-medium text-red-500 hover:underline"
-                              title="Delete"
-                            >
-                              D
-                            </button>
+                          <button
+                            onClick={() => openGroupDetail(g)}
+                            className="text-[#6C3EF4] hover:underline font-semibold text-left"
+                          >
+                            {g.groupName || '-'}
+                          </button>
+                        </td>
+                        <td className="p-4 text-gray-600 dark:text-slate-400">{g.projectName || '-'}</td>
+                        <td className="p-4 text-gray-600 dark:text-slate-400">{(g.participants || []).length}</td>
+                        <td className="p-4">
+                          <div className="flex justify-center gap-3">
+                            <button onClick={() => openEdit(g)} className="text-blue-500 hover:underline text-sm font-bold">Edit</button>
+                            <button onClick={() => handleDeleteGroup(g.id)} className="text-red-500 hover:underline text-sm font-bold">Delete</button>
                           </div>
                         </td>
                       </tr>
@@ -190,28 +273,40 @@ export default function AdminDashboard() {
           )}
 
           {activeTab === 'users' && (
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow border dark:border-slate-700 overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b dark:border-slate-700">
-                    <th className="text-left p-4 text-sm font-semibold text-gray-600 dark:text-slate-400">Sr. No</th>
-                    <th className="text-left p-4 text-sm font-semibold text-gray-600 dark:text-slate-400">Name</th>
-                    <th className="text-left p-4 text-sm font-semibold text-gray-600 dark:text-slate-400">Email</th>
-                    <th className="text-left p-4 text-sm font-semibold text-gray-600 dark:text-slate-400">Mobile</th>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border dark:border-slate-700 overflow-hidden">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-gray-50 dark:bg-slate-700/50">
+                  <tr>
+                    <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400">Sr. No</th>
+                    <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400">Username</th>
+                    <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400">Email</th>
+                    <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400">Admin</th>
+                    <th className="p-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400 text-center">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y dark:divide-slate-700">
                   {loading ? (
-                    <tr>
-                      <td colSpan={4} className="p-8 text-center text-gray-500">Loading...</td>
-                    </tr>
+                    <tr><td colSpan={5} className="p-12 text-center text-gray-400 italic">Fetching data...</td></tr>
                   ) : (
                     users.map((u, i) => (
-                      <tr key={u.uid} className="border-b dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700/50">
-                        <td className="p-4 text-gray-800 dark:text-slate-200">{i + 1}</td>
-                        <td className="p-4 text-gray-800 dark:text-slate-200">{u.name || u.email || '-'}</td>
-                        <td className="p-4 text-gray-800 dark:text-slate-200">{u.email || '-'}</td>
-                        <td className="p-4 text-gray-800 dark:text-slate-200">{u.mobileNumber || '-'}</td>
+                      <tr key={u.uid || i} className="hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors">
+                        <td className="p-4 text-gray-700 dark:text-slate-300 font-medium">{i + 1}</td>
+                        <td className="p-4 text-gray-800 dark:text-white font-semibold">{u.name || 'Unknown User'}</td>
+                        <td className="p-4 text-gray-600 dark:text-slate-400">{u.email}</td>
+                        <td className="p-4">
+                          <span className={`px-2 py-0.5 rounded text-xs ${u.isAdmin ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-slate-600 dark:text-slate-300'}`}>
+                            {u.isAdmin ? 'Yes' : 'No'}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex justify-center gap-3">
+                            <button onClick={() => openEditUser(u)} className="text-blue-500 hover:underline text-sm font-bold">Edit</button>
+                            <button onClick={() => handleToggleAdmin(u.uid, u.isAdmin)} className="text-purple-500 hover:underline text-sm font-bold">
+                              {u.isAdmin ? 'Revoke Admin' : 'Make Admin'}
+                            </button>
+                            <button onClick={() => handleDeleteUser(u.uid)} className="text-red-500 hover:underline text-sm font-bold">Delete</button>
+                          </div>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -222,45 +317,104 @@ export default function AdminDashboard() {
         </main>
       </div>
 
-      {/* Add Group Modal */}
-      {showAddGroup && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowAddGroup(false)}>
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Add Group</h3>
-            <form onSubmit={handleAddGroup} className="space-y-4">
+      {/* Group Detail Modal */}
+      {selectedGroup && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col shadow-2xl">
+            <div className="p-6 border-b dark:border-slate-700 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">{selectedGroup.groupName || 'Group'}</h2>
+              <button onClick={() => setSelectedGroup(null)} className="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+            <div className="p-4 flex-1 overflow-y-auto">
+              <h3 className="text-sm font-semibold text-gray-600 dark:text-slate-400 mb-2">Current Members</h3>
+              <ul className="space-y-2 mb-6">
+                {(selectedGroup.participants || []).map((pid) => {
+                  const usr = users.find((x) => x.uid === pid);
+                  return (
+                    <li key={pid} className="flex justify-between items-center py-2 px-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
+                      <span className="text-gray-800 dark:text-white">{usr?.name || usr?.email || pid}</span>
+                      <button onClick={() => handleRemoveMember(pid)} className="text-red-500 hover:underline text-sm">Remove</button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <h3 className="text-sm font-semibold text-gray-600 dark:text-slate-400 mb-2">Add User</h3>
+              <ul className="space-y-1">
+                {users
+                  .filter((u) => !(selectedGroup.participants || []).includes(u.uid))
+                  .map((u) => (
+                    <li key={u.uid} className="flex justify-between items-center py-2 px-3 hover:bg-gray-50 dark:hover:bg-slate-700/30 rounded-lg">
+                      <span className="text-gray-700 dark:text-slate-300">{u.name || u.email}</span>
+                      <button onClick={() => handleAddMember(u.uid)} className="text-[#6C3EF4] hover:underline text-sm font-medium">Add</button>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Group Modal */}
+      {(showAddGroup || editingGroup) && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md p-8 shadow-2xl">
+            <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
+              {editingGroup ? 'Edit Group' : 'Create New Group'}
+            </h2>
+            <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Group Name</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-slate-300 mb-2">Group Name</label>
                 <input
-                  value={form.groupName}
-                  onChange={(e) => setForm((f) => ({ ...f, groupName: e.target.value }))}
-                  className="w-full px-4 py-2 border dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white"
                   required
+                  className="w-full px-4 py-3 border dark:border-slate-600 rounded-xl bg-gray-50 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#6C3EF4] outline-none transition-all"
+                  value={form.groupName}
+                  onChange={(e) => setForm({ ...form, groupName: e.target.value })}
+                  placeholder="Marketing Team"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Project Name</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-slate-300 mb-2">Project Name</label>
                 <input
+                  className="w-full px-4 py-3 border dark:border-slate-600 rounded-xl bg-gray-50 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#6C3EF4] outline-none transition-all"
                   value={form.projectName}
-                  onChange={(e) => setForm((f) => ({ ...f, projectName: e.target.value }))}
-                  className="w-full px-4 py-2 border dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white"
+                  onChange={(e) => setForm({ ...form, projectName: e.target.value })}
+                  placeholder="Q1 Strategy"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">No. of Employees</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={form.employeeCount}
-                  onChange={(e) => setForm((f) => ({ ...f, employeeCount: parseInt(e.target.value) || 0 }))}
-                  className="w-full px-4 py-2 border dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white"
-                />
-              </div>
-              <div className="flex gap-2 pt-2">
-                <button type="submit" className="flex-1 py-2 bg-[#6C3EF4] text-white rounded-lg hover:bg-[#5b2ed9]">
-                  Create
-                </button>
-                <button type="button" onClick={() => setShowAddGroup(false)} className="flex-1 py-2 border dark:border-slate-600 rounded-lg">
-                  Cancel
+              {!editingGroup && (
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-slate-300 mb-2">
+                    Select Members ({form.memberIds.length})
+                  </label>
+                  <div className="border dark:border-slate-600 rounded-xl bg-gray-50 dark:bg-slate-900 p-3 max-h-48 overflow-y-auto space-y-2">
+                    {users.length === 0 ? (
+                      <p className="text-gray-400 text-sm italic">No users available</p>
+                    ) : (
+                      users.map((user) => (
+                        <label key={user.uid} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={form.memberIds.includes(user.uid)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setForm({ ...form, memberIds: [...form.memberIds, user.uid] });
+                              } else {
+                                setForm({ ...form, memberIds: form.memberIds.filter((id) => id !== user.uid) });
+                              }
+                            }}
+                            className="w-4 h-4 rounded border-gray-300 text-[#6C3EF4] focus:ring-2 focus:ring-[#6C3EF4]"
+                          />
+                          <span className="text-sm text-gray-700 dark:text-slate-300">{user.name || user.email}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-3 pt-6">
+                <button type="button" onClick={resetForm} className="flex-1 px-4 py-3 text-gray-500 dark:text-slate-400 font-bold hover:bg-gray-100 dark:hover:bg-slate-700 rounded-xl transition-colors">Cancel</button>
+                <button type="submit" className="flex-1 px-4 py-3 bg-[#6C3EF4] text-white font-bold rounded-xl hover:bg-[#5b2ed9] shadow-lg shadow-purple-500/30 transition-all">
+                  {editingGroup ? 'Save Changes' : 'Confirm Create'}
                 </button>
               </div>
             </form>
@@ -268,46 +422,48 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Edit Group Modal */}
-      {editingGroup && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setEditingGroup(null)}>
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Edit Group</h3>
-            <form onSubmit={handleUpdateGroup} className="space-y-4">
+      {/* Edit User Modal */}
+      {editingUser && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md p-8 shadow-2xl">
+            <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Edit User</h2>
+            <form onSubmit={handleSaveUser} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Group Name</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-slate-300 mb-2">Name</label>
                 <input
-                  value={form.groupName}
-                  onChange={(e) => setForm((f) => ({ ...f, groupName: e.target.value }))}
-                  className="w-full px-4 py-2 border dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white"
-                  required
+                  className="w-full px-4 py-3 border dark:border-slate-600 rounded-xl bg-gray-50 dark:bg-slate-900 dark:text-white"
+                  value={userForm.name}
+                  onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Project Name</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-slate-300 mb-2">Email</label>
                 <input
-                  value={form.projectName}
-                  onChange={(e) => setForm((f) => ({ ...f, projectName: e.target.value }))}
-                  className="w-full px-4 py-2 border dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white"
+                  type="email"
+                  className="w-full px-4 py-3 border dark:border-slate-600 rounded-xl bg-gray-50 dark:bg-slate-900 dark:text-white"
+                  value={userForm.email}
+                  onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">No. of Employees</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-slate-300 mb-2">Mobile</label>
                 <input
-                  type="number"
-                  min="0"
-                  value={form.employeeCount}
-                  onChange={(e) => setForm((f) => ({ ...f, employeeCount: parseInt(e.target.value) || 0 }))}
-                  className="w-full px-4 py-2 border dark:border-slate-600 rounded-lg dark:bg-slate-700 dark:text-white"
+                  className="w-full px-4 py-3 border dark:border-slate-600 rounded-xl bg-gray-50 dark:bg-slate-900 dark:text-white"
+                  value={userForm.mobileNumber}
+                  onChange={(e) => setUserForm({ ...userForm, mobileNumber: e.target.value })}
                 />
               </div>
-              <div className="flex gap-2 pt-2">
-                <button type="submit" className="flex-1 py-2 bg-[#6C3EF4] text-white rounded-lg hover:bg-[#5b2ed9]">
-                  Update
-                </button>
-                <button type="button" onClick={() => setEditingGroup(null)} className="flex-1 py-2 border dark:border-slate-600 rounded-lg">
-                  Cancel
-                </button>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-slate-300 mb-2">About</label>
+                <input
+                  className="w-full px-4 py-3 border dark:border-slate-600 rounded-xl bg-gray-50 dark:bg-slate-900 dark:text-white"
+                  value={userForm.about}
+                  onChange={(e) => setUserForm({ ...userForm, about: e.target.value })}
+                />
+              </div>
+              <div className="flex gap-3 pt-6">
+                <button type="button" onClick={resetUserForm} className="flex-1 px-4 py-3 text-gray-500 dark:text-slate-400 font-bold hover:bg-gray-100 dark:hover:bg-slate-700 rounded-xl">Cancel</button>
+                <button type="submit" className="flex-1 px-4 py-3 bg-[#6C3EF4] text-white font-bold rounded-xl hover:bg-[#5b2ed9]">Save</button>
               </div>
             </form>
           </div>

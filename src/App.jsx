@@ -59,12 +59,10 @@ function ChatLayout() {
   const [showSettings, setShowSettings] = useState(false);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
-  const [showNewGroup, setShowNewGroup] = useState(false);
   usePresence(currentUser?.uid);
   const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
   useKeyboardShortcuts({
     onNewChat: () => setShowNewChat(true),
-    onNewGroup: () => setShowNewGroup(true),
     onShortcuts: () => setShowKeyboardShortcuts(true),
   });
   const { activeCall, startCall, acceptCall, endCall } = useCall();
@@ -111,8 +109,6 @@ function ChatLayout() {
         onOpenSettings={() => setShowSettings(true)}
         showNewChat={showNewChat}
         onShowNewChat={setShowNewChat}
-        showNewGroup={showNewGroup}
-        onShowNewGroup={setShowNewGroup}
       />
       <ChatWindow
         chatId={selectedChat?.id}

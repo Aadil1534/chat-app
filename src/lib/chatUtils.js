@@ -173,7 +173,25 @@ export async function togglePinChat(chatId, userId) {
   } else {
     await updateDoc(userRef, {
       pinnedChats: [...pinnedChats, chatId],
+      archivedChats: (userData.archivedChats || []).filter((id) => id !== chatId),
     });
   }
 }
 
+export async function toggleArchiveChat(chatId, userId) {
+  const userRef = doc(db, 'users', userId);
+  const userSnap = await getDoc(userRef);
+  const userData = userSnap.exists() ? userSnap.data() : {};
+  const archivedChats = userData.archivedChats || [];
+  
+  if (archivedChats.includes(chatId)) {
+    await updateDoc(userRef, {
+      archivedChats: archivedChats.filter((id) => id !== chatId),
+    });
+  } else {
+    await updateDoc(userRef, {
+      archivedChats: [...archivedChats, chatId],
+      pinnedChats: (userData.pinnedChats || []).filter((id) => id !== chatId),
+    });
+  }
+}
