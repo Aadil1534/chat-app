@@ -170,6 +170,7 @@ export default function ChatWindow({
                     chatId={chatId}
                     currentUserId={currentUser?.uid}
                     otherUserId={otherUserId}
+                    isGroup={selectedChat?.isGroup}
                   />
                 </div>
               );
