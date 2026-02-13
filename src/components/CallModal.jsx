@@ -39,10 +39,32 @@ export default function CallModal({
 
     const run = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: isVideo,
-          audio: true,
-        });
+        // Try to enumerate devices first to diagnose issues
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const hasAudio = devices.some(d => d.kind === 'audioinput');
+        const hasVideo = devices.some(d => d.kind === 'videoinput');
+        
+        console.log('Available devices:', devices);
+        console.log('Has audio:', hasAudio, 'Has video:', hasVideo);
+
+        // Use flexible constraints
+        const constraints = {
+          audio: hasAudio ? true : false,
+          video: isVideo && hasVideo ? true : false,
+        };
+
+        // If video requested but no camera, fall back to audio only
+        if (isVideo && !hasVideo && hasAudio) {
+          setError('No camera found. Starting audio-only call...');
+          constraints.video = false;
+        }
+
+        // If no audio and no video, cannot proceed
+        if (!constraints.audio && !constraints.video) {
+          throw new Error('No audio or video devices found on this machine.');
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
         localStreamRef.current = stream;
         if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
@@ -88,7 +110,18 @@ export default function CallModal({
           }
         });
       } catch (err) {
-        setError(err.message || 'Could not access media');
+        console.error('Media access error details:', err);
+        let msg = err.message || 'Could not access media';
+        
+        if (err.name === 'NotFoundError') {
+          msg = 'No camera or microphone found on this device. Check your hardware settings.';
+        } else if (err.name === 'NotAllowedError') {
+          msg = 'Permission denied. Please allow camera/microphone access in your browser settings.';
+        } else if (err.name === 'OverconstrainedError') {
+          msg = 'Device does not support requested settings. Try using a different call type.';
+        }
+        
+        setError(msg);
         setStatus('error');
       }
     };
@@ -110,10 +143,31 @@ export default function CallModal({
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100]">
-      <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-lg mx-4">
+      <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-lg mx-4 relative">
+        {/* Close button (X) at top-right */}
+        <button
+          onClick={handleEnd}
+          className="absolute top-3 right-3 p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+          title="Close call"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+        
         <div className="flex flex-col items-center gap-4">
           {error ? (
-            <p className="text-red-400">{error}</p>
+            <div className="text-red-300 text-sm text-center space-y-4 max-w-sm py-4">
+              <p className="font-semibold text-base">⚠️ Call Failed</p>
+              <p>{error}</p>
+              <p className="text-xs opacity-75">Check browser console (F12) for technical details</p>
+              <button
+                onClick={handleEnd}
+                className="mt-6 px-6 py-3 w-full bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Close Call
+              </button>
+            </div>
           ) : (
             <>
               {isVideo && (
