@@ -96,47 +96,51 @@ export default function ContactInfo({ selectedChat, currentUser, otherUser, onOp
           )}
         </div>
         <h3 className="font-semibold text-gray-800 dark:text-white text-lg">{displayName}</h3>
-        <p className="text-sm text-gray-500 dark:text-slate-400">{userData?.mobileNumber || 'No phone'}</p>
-        <div className="flex gap-2 mt-4">
-          <button className="p-2 rounded-full bg-gray-100 dark:bg-slate-600 hover:bg-gray-200 dark:hover:bg-slate-500 transition-colors">
-            <svg
-              className="w-5 h-5 text-gray-600 dark:text-slate-300"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-4v4m0-11V3a1 1 0 011-1h2a1 1 0 011 1v3a1 1 0 01-1 1H9z"
-              />
-            </svg>
-          </button>
-          <button className="p-2 rounded-full bg-gray-100 dark:bg-slate-600 hover:bg-gray-200 dark:hover:bg-slate-500 transition-colors">
-            <svg
-              className="w-5 h-5 text-gray-600 dark:text-slate-300"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-              />
-            </svg>
-          </button>
-        </div>
+        {/* <p className="text-sm text-gray-500 dark:text-slate-400">{userData?.mobileNumber || 'No phone'}</p> */}
+        {!selectedChat?.isGroup && (
+          <div className="flex gap-2 mt-4">
+            <button className="p-2 rounded-full bg-gray-100 dark:bg-slate-600 hover:bg-gray-200 dark:hover:bg-slate-500 transition-colors">
+              <svg
+                className="w-5 h-5 text-gray-600 dark:text-slate-300"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-4v4m0-11V3a1 1 0 011-1h2a1 1 0 011 1v3a1 1 0 01-1 1H9z"
+                />
+              </svg>
+            </button>
+            <button className="p-2 rounded-full bg-gray-100 dark:bg-slate-600 hover:bg-gray-200 dark:hover:bg-slate-500 transition-colors">
+              <svg
+                className="w-5 h-5 text-gray-600 dark:text-slate-300"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="p-4 border-b border-gray-100 dark:border-slate-700">
-        <h4 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">
-          About
-        </h4>
-        <p className="text-sm text-gray-700 dark:text-slate-300">{userData?.about || 'Hey there! I am using ChatApp.'}</p>
-      </div>
+      {!selectedChat?.isGroup && (
+        <div className="p-4 border-b border-gray-100 dark:border-slate-700">
+          <h4 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">
+            About
+          </h4>
+          <p className="text-sm text-gray-700 dark:text-slate-300">{userData?.about || 'Hey there! I am using ChatApp.'}</p>
+        </div>
+      )}
 
       {selectedChat?.isGroup && groupMembers.length > 0 && (
         <div className="p-4 border-b border-gray-100 dark:border-slate-700">

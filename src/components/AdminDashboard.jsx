@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { uploadGroupPhoto } from '../lib/profileUtils';
 import {
   getAdminGroups,
   getUsers,
@@ -18,6 +19,7 @@ import {
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const { currentUser, signOut } = useAuth();
+  const groupIconInputRef = useRef(null);
   const [activeTab, setActiveTab] = useState('groups');
   const [groups, setGroups] = useState([]);
   const [users, setUsers] = useState([]);
@@ -26,10 +28,12 @@ export default function AdminDashboard() {
   const [editingGroup, setEditingGroup] = useState(null);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [form, setForm] = useState({
     groupName: '',
     projectName: '',
     memberIds: [],
+    groupImageURL: null,
   });
   const [userForm, setUserForm] = useState({
     name: '',
@@ -56,7 +60,7 @@ export default function AdminDashboard() {
   }, []);
 
   const resetForm = () => {
-    setForm({ groupName: '', projectName: '', memberIds: [] });
+    setForm({ groupName: '', projectName: '', memberIds: [], groupImageURL: null });
     setShowAddGroup(false);
     setEditingGroup(null);
     setSelectedGroup(null);
@@ -67,6 +71,21 @@ export default function AdminDashboard() {
     setEditingUser(null);
   };
 
+  const handleGroupIconChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await uploadGroupPhoto(editingGroup?.id || '', file);
+      setForm((prev) => ({ ...prev, groupImageURL: url }));
+    } catch (err) {
+      console.error('Upload error:', err);
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -74,12 +93,14 @@ export default function AdminDashboard() {
         await updateAdminGroup(editingGroup.id, {
           groupName: form.groupName,
           projectName: form.projectName,
+          groupImageURL: form.groupImageURL,
         });
       } else {
         await createAdminGroup(currentUser.uid, {
           groupName: form.groupName,
           projectName: form.projectName,
           memberIds: form.memberIds,
+          groupImageURL: form.groupImageURL,
         });
       }
       resetForm();
@@ -142,6 +163,7 @@ export default function AdminDashboard() {
       groupName: g.groupName || '',
       projectName: g.projectName || '',
       memberIds: g.participants || [],
+      groupImageURL: g.groupImageURL || null,
     });
     setSelectedGroup(null);
   };
@@ -362,6 +384,34 @@ export default function AdminDashboard() {
               {editingGroup ? 'Edit Group' : 'Create New Group'}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="flex flex-col items-center mb-4">
+                <input
+                  ref={groupIconInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleGroupIconChange}
+                  disabled={uploading}
+                />
+                <button
+                  type="button"
+                  onClick={() => groupIconInputRef.current?.click()}
+                  disabled={uploading}
+                  className="relative group"
+                >
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 overflow-hidden flex items-center justify-center text-white">
+                    {form.groupImageURL ? (
+                      <img src={form.groupImageURL} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-3xl font-bold">📁</span>
+                    )}
+                  </div>
+                  <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                    <span className="text-white text-xs font-medium">Upload Icon</span>
+                  </div>
+                </button>
+                {uploading && <p className="text-sm text-gray-500 dark:text-slate-400 mt-2">Uploading...</p>}
+              </div>
               <div>
                 <label className="block text-sm font-bold text-gray-700 dark:text-slate-300 mb-2">Group Name</label>
                 <input

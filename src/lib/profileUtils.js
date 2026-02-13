@@ -19,3 +19,9 @@ export async function uploadProfilePhoto(uid, file) {
   await uploadBytes(storageRef, file);
   return getDownloadURL(storageRef);
 }
+
+export async function uploadGroupPhoto(groupId, file) {
+  const storageRef = ref(storage, `group-photos/${groupId}/${Date.now()}-${file.name}`);
+  await uploadBytes(storageRef, file);
+  return getDownloadURL(storageRef);
+}
