@@ -1,10 +1,15 @@
 import { doc, getDoc, collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { db } from '../lib/firebase';
 
 export default function ContactInfo({ selectedChat, currentUser, otherUser, onOpenSettings }) {
   const [userData, setUserData] = useState(null);
   const [mediaUrls, setMediaUrls] = useState([]);
+  const [groupMembers, setGroupMembers] = useState([]);
+  const [showStarredMessages, setShowStarredMessages] = useState(false);
+  const [starredMessages, setStarredMessages] = useState([]);
+  const [selectedImage, setSelectedImage] = useState(null);
 
   useEffect(() => {
     if (otherUser?.uid && !otherUser?.isGroup) {
@@ -15,6 +20,21 @@ export default function ContactInfo({ selectedChat, currentUser, otherUser, onOp
       setUserData(otherUser?.isGroup ? { name: otherUser.name, photoURL: otherUser.photoURL } : null);
     }
   }, [otherUser?.uid, otherUser?.isGroup]);
+
+  useEffect(() => {
+    if (selectedChat?.isGroup && selectedChat?.participants) {
+      Promise.all(
+        selectedChat.participants.map((uid) =>
+          getDoc(doc(db, 'users', uid)).then((snap) => ({
+            uid,
+            ...snap.data(),
+          }))
+        )
+      ).then(setGroupMembers);
+    } else {
+      setGroupMembers([]);
+    }
+  }, [selectedChat?.isGroup, selectedChat?.participants]);
 
   useEffect(() => {
     if (!selectedChat?.id) {
@@ -33,6 +53,23 @@ export default function ContactInfo({ selectedChat, currentUser, otherUser, onOp
     });
     return () => {};
   }, [selectedChat?.id]);
+
+  const handleShowStarredMessages = async () => {
+    if (!selectedChat?.id || !currentUser?.uid) return;
+
+    const q = query(
+      collection(db, 'chats', selectedChat.id, 'messages'),
+      orderBy('createdAt', 'desc')
+    );
+    const snap = await getDocs(q);
+    const starred = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((msg) => (msg.starredBy || []).includes(currentUser.uid));
+    setStarredMessages(starred);
+    setShowStarredMessages(true);
+  };
+
+  const closeImageViewer = () => setSelectedImage(null);
 
   if (!selectedChat) {
     return (
@@ -101,18 +138,46 @@ export default function ContactInfo({ selectedChat, currentUser, otherUser, onOp
         <p className="text-sm text-gray-700 dark:text-slate-300">{userData?.about || 'Hey there! I am using ChatApp.'}</p>
       </div>
 
+      {selectedChat?.isGroup && groupMembers.length > 0 && (
+        <div className="p-4 border-b border-gray-100 dark:border-slate-700">
+          <h4 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-3">
+            Members ({groupMembers.length})
+          </h4>
+          <div className="space-y-2">
+            {groupMembers.map((member) => (
+              <div key={member.uid} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
+                <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-slate-600 overflow-hidden flex-shrink-0">
+                  {member.photoURL ? (
+                    <img src={member.photoURL} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-sm font-semibold text-gray-500 dark:text-slate-300">
+                      {(member.name || '?').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 dark:text-white truncate">{member.name || 'Unknown'}</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">{member.online ? 'Online' : 'Offline'}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="p-4 border-b border-gray-100 dark:border-slate-700">
         <h4 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-3">
           Media, Links & Docs
         </h4>
-        <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap">
           {mediaUrls.length > 0 ? (
             mediaUrls.slice(0, 6).map((url, i) => (
               <img
                 key={i}
                 src={url}
                 alt=""
-                className="w-16 h-16 rounded-lg object-cover"
+                className="w-16 h-16 rounded-lg object-cover cursor-pointer"
+                onClick={() => setSelectedImage(url)}
               />
             ))
           ) : (
@@ -122,7 +187,7 @@ export default function ContactInfo({ selectedChat, currentUser, otherUser, onOp
       </div>
 
       <div className="p-4 border-b border-gray-100 dark:border-slate-700">
-        <button className="flex items-center gap-3 w-full text-left hover:bg-gray-50 dark:hover:bg-slate-700 rounded-lg p-2 -m-2 transition-colors">
+        <button onClick={handleShowStarredMessages} className="flex items-center gap-3 w-full text-left hover:bg-gray-50 dark:hover:bg-slate-700 rounded-lg p-2 -m-2 transition-colors">
           <svg
             className="w-5 h-5 text-gray-500 dark:text-slate-400"
             fill="none"
@@ -160,6 +225,76 @@ export default function ContactInfo({ selectedChat, currentUser, otherUser, onOp
           </button>
         </div>
       )}
+
+      {showStarredMessages && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-2xl max-h-[70vh] flex flex-col overflow-hidden">
+            <div className="p-4 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between flex-shrink-0">
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Starred Messages</h2>
+              <button
+                onClick={() => setShowStarredMessages(false)}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5 text-gray-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 p-4 space-y-3">
+              {starredMessages.length > 0 ? (
+                starredMessages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className="p-3 bg-gray-50 dark:bg-slate-700 rounded-lg border border-gray-200 dark:border-slate-600"
+                  >
+                    {msg.imageUrl && (
+                      <div className="mb-2">
+                        <img
+                          src={msg.imageUrl}
+                          alt="Shared"
+                          className="max-w-full max-h-32 rounded-lg object-cover cursor-pointer"
+                          onClick={() => setSelectedImage(msg.imageUrl)}
+                        />
+                      </div>
+                    )}
+                    {msg.text && (
+                      <p className="text-sm text-gray-800 dark:text-slate-200 break-words">{msg.text}</p>
+                    )}
+                    <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
+                      {msg.createdAt?.toDate?.()
+                        ? msg.createdAt.toDate().toLocaleString()
+                        : new Date(msg.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-gray-500 dark:text-slate-400">
+                  <svg className="w-12 h-12 mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                    />
+                  </svg>
+                  <p className="text-sm">No starred messages yet</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+        {selectedImage && createPortal(
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={closeImageViewer}>
+            <div className="relative max-w-4xl max-h-screen flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+              <img src={selectedImage} alt="Full size" className="max-w-full max-h-screen object-contain rounded-lg" />
+              <button onClick={closeImageViewer} className="absolute top-4 right-4 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+          </div>, document.body
+        )}
     </div>
   );
 }

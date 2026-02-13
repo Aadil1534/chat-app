@@ -17,12 +17,16 @@ export default function Sidebar({
   onOpenSettings,
   showNewChat,
   onShowNewChat,
+  showArchiveView,
+  onShowArchiveView,
 }) {
   const darkMode = useSelector(selectDarkMode);
   const dispatch = useDispatch();
   const [search, setSearch] = useState('');
   const showNewChatActual = showNewChat ?? false;
   const setShowNewChatActual = onShowNewChat ?? (() => {});
+  const showArchiveViewActual = showArchiveView ?? false;
+  const setShowArchiveViewActual = onShowArchiveView ?? (() => {});
   const [showProfileEdit, setShowProfileEdit] = useState(false);
   const [allUsers, setAllUsers] = useState([]);
   const [contextMenu, setContextMenu] = useState(null);
@@ -114,10 +118,10 @@ export default function Sidebar({
         />
         <button
           type="button"
-          onClick={() => setContextMenu(contextMenu === 'archive' ? null : 'archive')}
-          className={`inline-block mt-3 text-sm ${contextMenu === 'archive' ? 'font-semibold' : ''} text-[#6C3EF4] hover:underline`}
+          onClick={() => setShowArchiveViewActual(!showArchiveViewActual)}
+          className={`inline-block mt-3 text-sm ${showArchiveViewActual ? 'font-semibold' : ''} text-[#6C3EF4] hover:underline`}
         >
-          {contextMenu === 'archive' ? 'Chats' : 'Archive'}
+          {showArchiveViewActual ? 'Chats' : 'Archive'}
         </button>
       </div>
 
@@ -142,7 +146,7 @@ export default function Sidebar({
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="p-4 text-center text-gray-500 dark:text-slate-400 text-sm">Loading chats...</div>
-        ) : contextMenu === 'archive' ? (
+        ) : showArchiveViewActual ? (
           <div className="py-2">
             <h3 className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase">Archived</h3>
             {archivedChats.filter((c) => (c.otherUser?.name || '').toLowerCase().includes(search.toLowerCase())).map((chat) => (
@@ -163,7 +167,7 @@ export default function Sidebar({
               </div>
             ))}
             {archivedChats.length === 0 && <p className="px-4 py-4 text-sm text-gray-400">No archived chats</p>}
-            <button onClick={() => setContextMenu(null)} className="px-4 py-2 mt-2 text-sm text-[#6C3EF4] hover:underline">Back to chats</button>
+            <button onClick={() => setShowArchiveViewActual(false)} className="px-4 py-2 mt-2 text-sm text-[#6C3EF4] hover:underline">Back to chats</button>
           </div>
         ) : (
           <div className="py-2">

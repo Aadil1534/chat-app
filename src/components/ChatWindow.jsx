@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useMessages } from '../hooks/useMessages';
-import { sendMessage } from '../lib/chatUtils';
+import { sendMessage, toggleArchiveChat } from '../lib/chatUtils';
 import MessageBubble from './MessageBubble';
 import EmojiPicker from 'emoji-picker-react';
 
@@ -11,6 +11,7 @@ export default function ChatWindow({
   otherUser,
   onStartVoiceCall,
   onStartVideoCall,
+  onArchived,
 }) {
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
@@ -51,6 +52,13 @@ export default function ChatWindow({
     } finally {
       setUploadingImage(false);
       e.target.value = '';
+    }
+  };
+
+  const handleArchive = async () => {
+    if (currentUser?.uid && chatId) {
+      await toggleArchiveChat(chatId, currentUser.uid);
+      onArchived?.();
     }
   };
 
@@ -122,9 +130,13 @@ export default function ChatWindow({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
             </svg>
           </button>
-          <button className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors text-gray-600 dark:text-slate-300">
+          <button
+            onClick={handleArchive}
+            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors text-gray-600 dark:text-slate-300"
+            title="Archive chat"
+          >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
             </svg>
           </button>
         </div>

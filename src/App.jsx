@@ -59,6 +59,7 @@ function ChatLayout() {
   const [showSettings, setShowSettings] = useState(false);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
+  const [showArchiveView, setShowArchiveView] = useState(false);
   usePresence(currentUser?.uid);
   const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
   useKeyboardShortcuts({
@@ -99,6 +100,11 @@ function ChatLayout() {
     }
   };
 
+  const handleChatArchived = () => {
+    setSelectedChat(null);
+    setShowArchiveView(true);
+  };
+
   return (
     <div className="h-screen flex overflow-hidden bg-[#f4f5f7] dark:bg-slate-900 transition-colors">
       <Sidebar
@@ -109,6 +115,8 @@ function ChatLayout() {
         onOpenSettings={() => setShowSettings(true)}
         showNewChat={showNewChat}
         onShowNewChat={setShowNewChat}
+        showArchiveView={showArchiveView}
+        onShowArchiveView={setShowArchiveView}
       />
       <ChatWindow
         chatId={selectedChat?.id}
@@ -117,6 +125,7 @@ function ChatLayout() {
         otherUser={otherUser}
         onStartVoiceCall={handleStartVoiceCall}
         onStartVideoCall={handleStartVideoCall}
+        onArchived={handleChatArchived}
       />
       <ContactInfo
         selectedChat={selectedChat}

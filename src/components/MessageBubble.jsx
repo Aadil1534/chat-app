@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { deleteMessage, toggleMessageStarred } from '../lib/chatUtils';
 
 export default function MessageBubble({
@@ -9,6 +10,7 @@ export default function MessageBubble({
   otherUserId,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
   const { text, imageUrl, createdAt, senderId, seenBy = [], starredBy = [], deleted } = message;
 
   const time = createdAt?.toDate?.()
@@ -57,14 +59,13 @@ export default function MessageBubble({
           ) : (
             <>
               {imageUrl && (
-                <div className="mb-2">
-                  <img
-                    src={imageUrl}
-                    alt="Shared"
-                    className="max-w-full max-h-64 rounded-xl object-cover"
-                    style={{ borderRadius: '12px' }}
-                  />
-                </div>
+                <img
+                  src={imageUrl}
+                  alt="Shared"
+                  className="max-w-full max-h-64 rounded-xl object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                  style={{ borderRadius: '12px' }}
+                  onClick={(e) => { e.stopPropagation(); setSelectedImage(imageUrl); }}
+                />
               )}
               {text && <p className="text-sm break-words">{text}</p>}
             </>
@@ -101,7 +102,7 @@ export default function MessageBubble({
             {time}
           </span>
           {isOutgoing && (
-            <span className="text-xs">
+            <span className="text-xs text-gray-600 dark:text-white">
               {seen ? (
                 <span title="Read">✓✓</span>
               ) : (
@@ -111,6 +112,33 @@ export default function MessageBubble({
           )}
         </div>
       </div>
+
+      {selectedImage && createPortal(
+        <div
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div
+            className="relative max-w-4xl max-h-screen flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={selectedImage}
+              alt="Full size"
+              className="max-w-full max-h-screen object-contain rounded-lg"
+            />
+            <button
+              onClick={() => setSelectedImage(null)}
+              className="absolute top-4 right-4 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

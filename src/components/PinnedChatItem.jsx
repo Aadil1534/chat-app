@@ -1,7 +1,10 @@
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { usePinnedChatHistory } from '../hooks/usePinnedChatHistory';
 
 export default function PinnedChatItem({ chat, isActive, onSelect, onTogglePin, currentUserId }) {
   const { recentMessages } = usePinnedChatHistory(chat.id);
+  const [selectedImage, setSelectedImage] = useState(null);
 
   const formatTime = (timestamp) => {
     if (!timestamp) return '';
@@ -59,16 +62,21 @@ export default function PinnedChatItem({ chat, isActive, onSelect, onTogglePin, 
           <div className="mt-1 space-y-0.5">
             {recentMessages.length > 0 ? (
               recentMessages.map((msg, idx) => (
-                <div key={msg.id || idx} className="text-[10px] text-gray-500 dark:text-slate-400 truncate">
+                <div key={msg.id || idx} className="text-[10px] text-gray-500 dark:text-slate-400 truncate flex items-center gap-1">
                   <span className="font-medium">
                     {msg.senderId === currentUserId ? 'You' : chat.otherUser?.name?.split(' ')[0] || 'User'}:
-                  </span>{' '}
+                  </span>
                   {msg.deleted ? (
                     <span className="italic">Message deleted</span>
                   ) : msg.imageUrl ? (
-                    '📷 Photo'
+                    <img
+                      src={msg.imageUrl}
+                      alt="thumb"
+                      className="w-10 h-6 object-cover rounded cursor-pointer"
+                      onClick={(e) => { e.stopPropagation(); setSelectedImage(msg.imageUrl); }}
+                    />
                   ) : (
-                    msg.text || ''
+                    <span className="truncate">{msg.text || ''}</span>
                   )}
                 </div>
               ))
@@ -78,6 +86,16 @@ export default function PinnedChatItem({ chat, isActive, onSelect, onTogglePin, 
           </div>
         </div>
       </div>
+    {selectedImage && createPortal(
+      <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setSelectedImage(null)}>
+        <div className="relative max-w-4xl max-h-screen flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+          <img src={selectedImage} alt="Full size" className="max-w-full max-h-screen object-contain rounded-lg" />
+          <button onClick={() => setSelectedImage(null)} className="absolute top-4 right-4 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+      </div>, document.body
+    )}
     </div>
   );
 }

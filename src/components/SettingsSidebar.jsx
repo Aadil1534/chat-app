@@ -60,7 +60,7 @@ export default function SettingsSidebar({ currentUser, onClose }) {
         <div className="flex-1 overflow-y-auto border-t dark:border-slate-700">
           <ProfileEdit
             user={{ ...currentUser, uid: currentUser.uid, displayName: currentUser.displayName, photoURL: currentUser.photoURL }}
-            onClose={() => {}}
+            onClose={() => window.location.reload()}
           />
         </div>
       )}

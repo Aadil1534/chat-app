@@ -89,6 +89,23 @@ export function useChats(currentUserId) {
 
         setChats(chatList);
         setLoading(false);
+
+        // subscribe to other user docs so profile/photo changes propagate
+        const otherIds = Array.from(new Set(chatList.filter((c) => !c.isGroup && c.otherUser?.uid).map((c) => c.otherUser.uid)));
+        const unsubUsers = otherIds.map((uid) => {
+          const uRef = doc(db, 'users', uid);
+          return onSnapshot(uRef, (snap) => {
+            const data = snap.exists() ? snap.data() : null;
+            if (!data) return;
+            setChats((prev) => prev.map((c) => (
+              !c.isGroup && c.otherUser?.uid === uid ? { ...c, otherUser: { uid, ...data } } : c
+            )));
+          });
+        });
+
+        // cleanup user listeners when chats change
+        // store on effect scope so returned cleanup can access
+        useChats._unsubs = (useChats._unsubs || []).concat(unsubUsers);
       },
       (err) => {
         console.error('Chats listener error:', err);
@@ -99,6 +116,11 @@ export function useChats(currentUserId) {
     return () => {
       unsubscribe();
       unsubscribeUser();
+      // unsubscribe any user listeners we created in previous run
+      if (useChats._unsubs) {
+        useChats._unsubs.forEach((u) => u && typeof u === 'function' && u());
+        useChats._unsubs = [];
+      }
     };
   }, [currentUserId]);
 

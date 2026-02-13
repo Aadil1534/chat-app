@@ -62,8 +62,8 @@ export default function ProfileEdit({ user, onClose }) {
     setUploading(true);
     try {
       const url = await uploadProfilePhoto(user.uid, file);
+      setForm((f) => ({ ...f, photoURL: url }));
       await updateUserProfile(user.uid, { photoURL: url });
-      onClose();
     } catch (err) {
       console.error(err);
     } finally {
