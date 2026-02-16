@@ -28,6 +28,12 @@ export default function Sidebar({
   const showArchiveViewActual = showArchiveView ?? false;
   const setShowArchiveViewActual = onShowArchiveView ?? (() => {});
   const [showProfileEdit, setShowProfileEdit] = useState(false);
+
+  const handleLogoutClick = () => {
+    if (window.confirm('Are you sure you want to logout?')) {
+      onSignOut();
+    }
+  };
   const [allUsers, setAllUsers] = useState([]);
   const [contextMenu, setContextMenu] = useState(null);
   const { chats, pinnedChatIds, archivedChatIds, loading } = useChats(currentUser?.uid);
@@ -290,7 +296,7 @@ export default function Sidebar({
             <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{currentUser?.email}</p>
           </div>
           <button
-            onClick={onSignOut}
+            onClick={handleLogoutClick}
             className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-600 dark:text-slate-300 transition-colors"
             title="Sign out"
           >

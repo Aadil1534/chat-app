@@ -188,6 +188,13 @@ export default function AdminDashboard() {
     });
   };
 
+  const handleLogout = () => {
+    if (window.confirm('Are you sure you want to logout?')) {
+      signOut();
+      navigate('/login');
+    }
+  };
+
   const handleAddMember = async (userId) => {
     if (!selectedGroup?.id) return;
     try {
@@ -228,7 +235,7 @@ export default function AdminDashboard() {
             + Add Group
           </button>
           <button
-            onClick={() => { signOut(); navigate('/login'); }}
+            onClick={handleLogout}
             className="text-gray-500 dark:text-slate-400 hover:text-red-500 text-sm font-medium"
           >
             Sign Out

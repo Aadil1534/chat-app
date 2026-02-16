@@ -131,23 +131,23 @@ export default function Registration() {
             </div>
           </div>
 
-          <div>
-            <label className={`block text-sm font-medium mb-1 ${labelCls}`}>
-              Mobile Number <span className="text-red-500">*</span>
-            </label>
-<input
-  type="tel"
-  name="mobileNumber"
-  value={form.mobileNumber}
-  onChange={handleChange}
-  className={inputCls}
-  placeholder="1234567890" // Removed '+' to match 10-digit limit
-  maxLength="10"
-  pattern="[0-9]{10}"
-  required
-/>
-
+          <div className="flex">
+            <span className="inline-flex items-center px-3 bg-gray-100 border border-r-0 border-gray-300 text-gray-500 text-sm">
+              +91
+            </span>
+            <input
+              type="tel"
+              name="mobileNumber"
+              value={form.mobileNumber}
+              onChange={handleChange}
+              className={`${inputCls} rounded-l-none`} 
+              placeholder="Enter your Phone Number" 
+              maxLength="10"
+              pattern="[0-9]{10}"
+              required
+            />
           </div>
+
 
           <div>
             <label className={`block text-sm font-medium mb-1 ${labelCls}`}>
