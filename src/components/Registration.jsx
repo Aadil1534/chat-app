@@ -135,15 +135,18 @@ export default function Registration() {
             <label className={`block text-sm font-medium mb-1 ${labelCls}`}>
               Mobile Number <span className="text-red-500">*</span>
             </label>
-            <input
-              type="tel"
-              name="mobileNumber"
-              value={form.mobileNumber}
-              onChange={handleChange}
-              className={inputCls}
-              placeholder="+1234567890"
-              required
-            />
+<input
+  type="tel"
+  name="mobileNumber"
+  value={form.mobileNumber}
+  onChange={handleChange}
+  className={inputCls}
+  placeholder="1234567890" // Removed '+' to match 10-digit limit
+  maxLength="10"
+  pattern="[0-9]{10}"
+  required
+/>
+
           </div>
 
           <div>
