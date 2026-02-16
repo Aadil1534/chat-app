@@ -29,6 +29,9 @@ export default function AdminDashboard() {
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [currentGroupPage, setCurrentGroupPage] = useState(0);
+  const [currentUserPage, setCurrentUserPage] = useState(0);
+  const itemsPerPage = 5;
   const [form, setForm] = useState({
     groupName: '',
     projectName: '',
@@ -48,6 +51,8 @@ export default function AdminDashboard() {
       const [g, u] = await Promise.all([getAdminGroups(), getUsers()]);
       setGroups(g);
       setUsers(u);
+      setCurrentGroupPage(0);
+      setCurrentUserPage(0);
     } catch (err) {
       console.error('Failed to load data:', err);
     } finally {
@@ -237,7 +242,7 @@ export default function AdminDashboard() {
             {['groups', 'users'].map((tab) => (
               <button
                 key={tab}
-                onClick={() => { setActiveTab(tab); setSelectedGroup(null); setEditingUser(null); }}
+                onClick={() => { setActiveTab(tab); setSelectedGroup(null); setEditingUser(null); setCurrentGroupPage(0); setCurrentUserPage(0); }}
                 className={`w-full text-left px-4 py-2.5 rounded-xl capitalize font-medium transition-colors ${
                   activeTab === tab
                     ? 'bg-[#6C3EF4]/10 text-[#6C3EF4]'
@@ -252,7 +257,7 @@ export default function AdminDashboard() {
 
         <main className="flex-1 p-6 overflow-y-auto">
           {activeTab === 'groups' && (
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border dark:border-slate-700 overflow-hidden">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border dark:border-slate-700 overflow-hidden flex flex-col">
               <table className="w-full text-left border-collapse">
                 <thead className="bg-gray-50 dark:bg-slate-700/50">
                   <tr>
@@ -267,35 +272,81 @@ export default function AdminDashboard() {
                   {loading ? (
                     <tr><td colSpan={5} className="p-12 text-center text-gray-400 italic">Fetching data...</td></tr>
                   ) : (
-                    groups.map((g, i) => (
-                      <tr key={g.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors">
-                        <td className="p-4 text-gray-700 dark:text-slate-300 font-medium">{i + 1}</td>
-                        <td className="p-4">
-                          <button
-                            onClick={() => openGroupDetail(g)}
-                            className="text-[#6C3EF4] hover:underline font-semibold text-left"
-                          >
-                            {g.groupName || '-'}
-                          </button>
-                        </td>
-                        <td className="p-4 text-gray-600 dark:text-slate-400">{g.projectName || '-'}</td>
-                        <td className="p-4 text-gray-600 dark:text-slate-400">{(g.participants || []).length}</td>
-                        <td className="p-4">
-                          <div className="flex justify-center gap-3">
-                            <button onClick={() => openEdit(g)} className="text-blue-500 hover:underline text-sm font-bold">Edit</button>
-                            <button onClick={() => handleDeleteGroup(g.id)} className="text-red-500 hover:underline text-sm font-bold">Delete</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                    (() => {
+                      const paginatedGroups = groups.slice(currentGroupPage * itemsPerPage, (currentGroupPage + 1) * itemsPerPage);
+                      const startIndex = currentGroupPage * itemsPerPage;
+                      return paginatedGroups.length === 0 && currentGroupPage > 0 ? (
+                        <tr><td colSpan={5} className="p-12 text-center text-gray-400 italic">No groups on this page</td></tr>
+                      ) : (
+                        paginatedGroups.map((g, i) => (
+                          <tr key={g.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors">
+                            <td className="p-4 text-gray-700 dark:text-slate-300 font-medium">{startIndex + i + 1}</td>
+                            <td className="p-4">
+                              <button
+                                onClick={() => openGroupDetail(g)}
+                                className="text-[#6C3EF4] hover:underline font-semibold text-left"
+                              >
+                                {g.groupName || '-'}
+                              </button>
+                            </td>
+                            <td className="p-4 text-gray-600 dark:text-slate-400">{g.projectName || '-'}</td>
+                            <td className="p-4 text-gray-600 dark:text-slate-400">{(g.participants || []).length}</td>
+                            <td className="p-4">
+                              <div className="flex justify-center gap-3">
+                                <button onClick={() => openEdit(g)} className="text-blue-500 hover:underline text-sm font-bold">Edit</button>
+                                <button onClick={() => handleDeleteGroup(g.id)} className="text-red-500 hover:underline text-sm font-bold">Delete</button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      );
+                    })()
                   )}
                 </tbody>
               </table>
+              {!loading && groups.length > itemsPerPage && (
+                <div className="p-4 border-t dark:border-slate-700 flex items-center justify-between">
+                  <div className="text-sm text-gray-600 dark:text-slate-400">
+                    Showing {currentGroupPage * itemsPerPage + 1} to {Math.min((currentGroupPage + 1) * itemsPerPage, groups.length)} of {groups.length} groups
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCurrentGroupPage(prev => Math.max(0, prev - 1))}
+                      disabled={currentGroupPage === 0}
+                      className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-white rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
+                    >
+                      Previous
+                    </button>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.ceil(groups.length / itemsPerPage) }).map((_, pageIdx) => (
+                        <button
+                          key={pageIdx}
+                          onClick={() => setCurrentGroupPage(pageIdx)}
+                          className={`w-8 h-8 rounded-lg font-medium text-sm transition-colors ${
+                            currentGroupPage === pageIdx
+                              ? 'bg-[#6C3EF4] text-white'
+                              : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-white hover:bg-gray-200 dark:hover:bg-slate-600'
+                          }`}
+                        >
+                          {pageIdx + 1}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setCurrentGroupPage(prev => prev + 1)}
+                      disabled={currentGroupPage >= Math.ceil(groups.length / itemsPerPage) - 1}
+                      className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-white rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === 'users' && (
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border dark:border-slate-700 overflow-hidden">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border dark:border-slate-700 overflow-hidden flex flex-col">
               <table className="w-full text-left border-collapse">
                 <thead className="bg-gray-50 dark:bg-slate-700/50">
                   <tr>
@@ -310,30 +361,76 @@ export default function AdminDashboard() {
                   {loading ? (
                     <tr><td colSpan={5} className="p-12 text-center text-gray-400 italic">Fetching data...</td></tr>
                   ) : (
-                    users.map((u, i) => (
-                      <tr key={u.uid || i} className="hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors">
-                        <td className="p-4 text-gray-700 dark:text-slate-300 font-medium">{i + 1}</td>
-                        <td className="p-4 text-gray-800 dark:text-white font-semibold">{u.name || 'Unknown User'}</td>
-                        <td className="p-4 text-gray-600 dark:text-slate-400">{u.email}</td>
-                        <td className="p-4">
-                          <span className={`px-2 py-0.5 rounded text-xs ${u.isAdmin ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-slate-600 dark:text-slate-300'}`}>
-                            {u.isAdmin ? 'Yes' : 'No'}
-                          </span>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex justify-center gap-3">
-                            <button onClick={() => openEditUser(u)} className="text-blue-500 hover:underline text-sm font-bold">Edit</button>
-                            <button onClick={() => handleToggleAdmin(u.uid, u.isAdmin)} className="text-purple-500 hover:underline text-sm font-bold">
-                              {u.isAdmin ? 'Revoke Admin' : 'Make Admin'}
-                            </button>
-                            <button onClick={() => handleDeleteUser(u.uid)} className="text-red-500 hover:underline text-sm font-bold">Delete</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                    (() => {
+                      const paginatedUsers = users.slice(currentUserPage * itemsPerPage, (currentUserPage + 1) * itemsPerPage);
+                      const startIndex = currentUserPage * itemsPerPage;
+                      return paginatedUsers.length === 0 && currentUserPage > 0 ? (
+                        <tr><td colSpan={5} className="p-12 text-center text-gray-400 italic">No users on this page</td></tr>
+                      ) : (
+                        paginatedUsers.map((u, i) => (
+                          <tr key={u.uid || i} className="hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors">
+                            <td className="p-4 text-gray-700 dark:text-slate-300 font-medium">{startIndex + i + 1}</td>
+                            <td className="p-4 text-gray-800 dark:text-white font-semibold">{u.name || 'Unknown User'}</td>
+                            <td className="p-4 text-gray-600 dark:text-slate-400">{u.email}</td>
+                            <td className="p-4">
+                              <span className={`px-2 py-0.5 rounded text-xs ${u.isAdmin ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-slate-600 dark:text-slate-300'}`}>
+                                {u.isAdmin ? 'Yes' : 'No'}
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex justify-center gap-3">
+                                <button onClick={() => openEditUser(u)} className="text-blue-500 hover:underline text-sm font-bold">Edit</button>
+                                <button onClick={() => handleToggleAdmin(u.uid, u.isAdmin)} className="text-purple-500 hover:underline text-sm font-bold">
+                                  {u.isAdmin ? 'Revoke Admin' : 'Make Admin'}
+                                </button>
+                                <button onClick={() => handleDeleteUser(u.uid)} className="text-red-500 hover:underline text-sm font-bold">Delete</button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      );
+                    })()
                   )}
                 </tbody>
               </table>
+              {!loading && users.length > itemsPerPage && (
+                <div className="p-4 border-t dark:border-slate-700 flex items-center justify-between">
+                  <div className="text-sm text-gray-600 dark:text-slate-400">
+                    Showing {currentUserPage * itemsPerPage + 1} to {Math.min((currentUserPage + 1) * itemsPerPage, users.length)} of {users.length} members
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCurrentUserPage(prev => Math.max(0, prev - 1))}
+                      disabled={currentUserPage === 0}
+                      className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-white rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
+                    >
+                      Previous
+                    </button>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.ceil(users.length / itemsPerPage) }).map((_, pageIdx) => (
+                        <button
+                          key={pageIdx}
+                          onClick={() => setCurrentUserPage(pageIdx)}
+                          className={`w-8 h-8 rounded-lg font-medium text-sm transition-colors ${
+                            currentUserPage === pageIdx
+                              ? 'bg-[#6C3EF4] text-white'
+                              : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-white hover:bg-gray-200 dark:hover:bg-slate-600'
+                          }`}
+                        >
+                          {pageIdx + 1}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setCurrentUserPage(prev => prev + 1)}
+                      disabled={currentUserPage >= Math.ceil(users.length / itemsPerPage) - 1}
+                      className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-white rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </main>
