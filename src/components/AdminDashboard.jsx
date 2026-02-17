@@ -37,6 +37,7 @@ export default function AdminDashboard() {
     projectName: '',
     memberIds: [],
     groupImageURL: null,
+    groupAdminId: '',
   });
   const [userForm, setUserForm] = useState({
     name: '',
@@ -60,12 +61,14 @@ export default function AdminDashboard() {
     }
   };
 
+  const currentIsGlobalAdmin = users.find((u) => u.uid === currentUser.uid)?.isAdmin;
+
   useEffect(() => {
     loadData();
   }, []);
 
   const resetForm = () => {
-    setForm({ groupName: '', projectName: '', memberIds: [], groupImageURL: null });
+    setForm({ groupName: '', projectName: '', memberIds: [], groupImageURL: null, groupAdminId: '' });
     setShowAddGroup(false);
     setEditingGroup(null);
     setSelectedGroup(null);
@@ -99,6 +102,7 @@ export default function AdminDashboard() {
           groupName: form.groupName,
           projectName: form.projectName,
           groupImageURL: form.groupImageURL,
+          groupAdminId: form.groupAdminId || currentUser.uid,
         });
       } else {
         await createAdminGroup(currentUser.uid, {
@@ -106,6 +110,7 @@ export default function AdminDashboard() {
           projectName: form.projectName,
           memberIds: form.memberIds,
           groupImageURL: form.groupImageURL,
+          groupAdminId: form.groupAdminId || currentUser.uid,
         });
       }
       resetForm();
@@ -169,6 +174,7 @@ export default function AdminDashboard() {
       projectName: g.projectName || '',
       memberIds: g.participants || [],
       groupImageURL: g.groupImageURL || null,
+      groupAdminId: g.groupAdmin || currentUser.uid,
     });
     setSelectedGroup(null);
   };
@@ -198,7 +204,7 @@ export default function AdminDashboard() {
   const handleAddMember = async (userId) => {
     if (!selectedGroup?.id) return;
     try {
-      await addMemberToAdminGroup(selectedGroup.id, userId);
+      await addMemberToAdminGroup(selectedGroup.id, userId, currentUser.uid);
       loadData();
       setSelectedGroup((prev) => ({
         ...prev,
@@ -212,7 +218,7 @@ export default function AdminDashboard() {
   const handleRemoveMember = async (userId) => {
     if (!selectedGroup?.id) return;
     try {
-      await removeMemberFromAdminGroup(selectedGroup.id, userId);
+      await removeMemberFromAdminGroup(selectedGroup.id, userId, currentUser.uid);
       loadData();
       setSelectedGroup((prev) => ({
         ...prev,
@@ -456,10 +462,21 @@ export default function AdminDashboard() {
               <ul className="space-y-2 mb-6">
                 {(selectedGroup.participants || []).map((pid) => {
                   const usr = users.find((x) => x.uid === pid);
+                  const isGroupAdmin = selectedGroup.groupAdmin === pid;
+                  const canRemove = currentIsGlobalAdmin || currentUser.uid === selectedGroup.groupAdmin;
                   return (
                     <li key={pid} className="flex justify-between items-center py-2 px-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
-                      <span className="text-gray-800 dark:text-white">{usr?.name || usr?.email || pid}</span>
-                      <button onClick={() => handleRemoveMember(pid)} className="text-red-500 hover:underline text-sm">Remove</button>
+                      <div className="flex items-center gap-3">
+                        <span className="text-gray-800 dark:text-white">{usr?.name || usr?.email || pid}</span>
+                        {isGroupAdmin && (
+                          <span className="px-2 py-0.5 rounded text-xs bg-[#6C3EF4]/10 text-[#6C3EF4] font-semibold">Admin</span>
+                        )}
+                      </div>
+                      {canRemove && !isGroupAdmin ? (
+                        <button onClick={() => handleRemoveMember(pid)} className="text-red-500 hover:underline text-sm">Remove</button>
+                      ) : (
+                        <div />
+                      )}
                     </li>
                   );
                 })}
@@ -483,11 +500,11 @@ export default function AdminDashboard() {
       {/* Add/Edit Group Modal */}
       {(showAddGroup || editingGroup) && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md p-8 shadow-2xl">
-            <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md shadow-2xl max-h-[85vh] flex flex-col">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white p-6 mb-0">
               {editingGroup ? 'Edit Group' : 'Create New Group'}
             </h2>
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-5 flex-1 overflow-y-auto p-6 flex flex-col">
               <div className="flex flex-col items-center mb-4">
                 <input
                   ref={groupIconInputRef}
@@ -565,7 +582,38 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               )}
-              <div className="flex gap-3 pt-6">
+              {!editingGroup && (
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-slate-300 mb-2">Choose Group Admin</label>
+                  <div className="border dark:border-slate-600 rounded-xl bg-gray-50 dark:bg-slate-900 p-3 max-h-44 overflow-y-auto space-y-2">
+                    {(() => {
+                      const candidates = [];
+                      // include current user as option
+                      const currentCandidate = users.find((u) => u.uid === currentUser.uid);
+                      if (currentCandidate) candidates.push(currentCandidate);
+                      // include selected members
+                      users.forEach((u) => {
+                        if (form.memberIds.includes(u.uid) && u.uid !== currentUser.uid) candidates.push(u);
+                      });
+                      if (candidates.length === 0) return <p className="text-gray-400 text-sm italic">No candidates available</p>;
+                      return candidates.map((c) => (
+                        <label key={c.uid} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="groupAdmin"
+                            value={c.uid}
+                            checked={form.groupAdminId === c.uid}
+                            onChange={(e) => setForm({ ...form, groupAdminId: e.target.value })}
+                            className="w-4 h-4 rounded border-gray-300 text-[#6C3EF4] focus:ring-2 focus:ring-[#6C3EF4]"
+                          />
+                          <span className="text-sm text-gray-700 dark:text-slate-300">{c.name || c.email}</span>
+                        </label>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-3 pt-6 mt-auto p-4 sticky bottom-0 bg-white dark:bg-slate-800 border-t dark:border-slate-700">
                 <button type="button" onClick={resetForm} className="flex-1 px-4 py-3 text-gray-500 dark:text-slate-400 font-bold hover:bg-gray-100 dark:hover:bg-slate-700 rounded-xl transition-colors">Cancel</button>
                 <button type="submit" className="flex-1 px-4 py-3 bg-[#6C3EF4] text-white font-bold rounded-xl hover:bg-[#5b2ed9] shadow-lg shadow-purple-500/30 transition-all">
                   {editingGroup ? 'Save Changes' : 'Confirm Create'}

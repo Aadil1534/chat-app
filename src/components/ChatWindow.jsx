@@ -1,6 +1,8 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useMessages } from '../hooks/useMessages';
 import { sendMessage, toggleArchiveChat } from '../lib/chatUtils';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import MessageBubble from './MessageBubble';
 import EmojiPicker from 'emoji-picker-react';
 
@@ -20,6 +22,26 @@ export default function ChatWindow({
   const fileInputRef = useRef(null);
 
   const { messages, loading, messagesEndRef } = useMessages(chatId, currentUser?.uid);
+
+  const [groupAdminUser, setGroupAdminUser] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadAdmin = async () => {
+      if (!selectedChat?.isGroup || !selectedChat?.groupAdmin) {
+        setGroupAdminUser(null);
+        return;
+      }
+      try {
+        const snap = await getDoc(doc(db, 'users', selectedChat.groupAdmin));
+        if (!cancelled) setGroupAdminUser(snap.exists() ? { uid: snap.id, ...snap.data() } : null);
+      } catch (err) {
+        console.error('Failed to load group admin user:', err);
+      }
+    };
+    loadAdmin();
+    return () => { cancelled = true; };
+  }, [selectedChat?.groupAdmin, selectedChat?.isGroup]);
 
   const otherUserId = selectedChat?.otherUser?.uid;
   const filteredMessages = messages.filter((m) => !m.deleted);
@@ -106,7 +128,13 @@ export default function ChatWindow({
           </div>
           <div className="min-w-0">
             <h3 className="font-semibold text-gray-800 dark:text-white truncate">{displayName}</h3>
-            <p className="text-xs text-gray-500 dark:text-slate-400">{isOnline ? 'Online' : 'Offline'}</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400">
+              {selectedChat?.isGroup ? (
+                <span>Admin: {groupAdminUser?.name || selectedChat.groupAdmin}</span>
+              ) : (
+                (isOnline ? 'Online' : 'Offline')
+              )}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">

@@ -17,36 +17,97 @@ export default function Registration() {
     password: '',
     confirmPassword: '',
   });
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+
+  const validateField = (name, value) => {
+    const newErrors = { ...errors };
+    switch (name) {
+      case 'firstName':
+        if (!value.trim()) {
+          newErrors.firstName = 'First name is required';
+        } else {
+          delete newErrors.firstName;
+        }
+        break;
+      case 'lastName':
+        if (!value.trim()) {
+          newErrors.lastName = 'Last name is required';
+        } else {
+          delete newErrors.lastName;
+        }
+        break;
+      case 'mobileNumber':
+        if (!value.trim()) {
+          newErrors.mobileNumber = 'Mobile number is required';
+        } else if (!/^\d{10}$/.test(value)) {
+          newErrors.mobileNumber = 'Mobile number must be 10 digits';
+        } else {
+          delete newErrors.mobileNumber;
+        }
+        break;
+      case 'email':
+        if (!value.trim()) {
+          newErrors.email = 'Email is required';
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+          newErrors.email = 'Invalid email format';
+        } else {
+          delete newErrors.email;
+        }
+        break;
+      case 'password':
+        if (!value) {
+          newErrors.password = 'Password is required';
+        } else if (value.length < 6) {
+          newErrors.password = 'Password must be at least 6 characters';
+        } else {
+          delete newErrors.password;
+        }
+        break;
+      case 'confirmPassword':
+        if (!value) {
+          newErrors.confirmPassword = 'Please confirm your password';
+        } else if (value !== form.password) {
+          newErrors.confirmPassword = 'Passwords do not match';
+        } else {
+          delete newErrors.confirmPassword;
+        }
+        break;
+      default:
+        break;
+    }
+    setErrors(newErrors);
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+    validateField(name, value);
+  };
+
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    validateField(name, value);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    
+    // Validate all fields
+    const newErrors = {};
+    if (!form.firstName.trim()) newErrors.firstName = 'First name is required';
+    if (!form.lastName.trim()) newErrors.lastName = 'Last name is required';
+    if (!form.mobileNumber.trim()) newErrors.mobileNumber = 'Mobile number is required';
+    else if (!/^\d{10}$/.test(form.mobileNumber)) newErrors.mobileNumber = 'Mobile number must be 10 digits';
+    if (!form.email.trim()) newErrors.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) newErrors.email = 'Invalid email format';
+    if (!form.password) newErrors.password = 'Password is required';
+    else if (form.password.length < 6) newErrors.password = 'Password must be at least 6 characters';
+    if (!form.confirmPassword) newErrors.confirmPassword = 'Please confirm your password';
+    else if (form.password !== form.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
 
-    if (!form.firstName.trim()) {
-      setError('First name is required');
-      return;
-    }
-    if (!form.lastName.trim()) {
-      setError('Last name is required');
-      return;
-    }
-    if (!form.mobileNumber.trim()) {
-      setError('Mobile number is required');
-      return;
-    }
-    if (form.password.length < 6) {
-      setError('Password must be at least 6 characters');
-      return;
-    }
-    if (form.password !== form.confirmPassword) {
-      setError('Passwords do not match');
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
@@ -62,7 +123,7 @@ export default function Registration() {
       });
       navigate('/', { replace: true });
     } catch (err) {
-      setError(err.message || 'Registration failed');
+      setErrors({ submit: err.message || 'Registration failed' });
     } finally {
       setLoading(false);
     }
@@ -110,10 +171,11 @@ export default function Registration() {
                 name="firstName"
                 value={form.firstName}
                 onChange={handleChange}
-                className={inputCls}
+                onBlur={handleBlur}
+                className={`${inputCls} ${errors.firstName ? 'border-red-500' : ''}`}
                 placeholder="First name"
-                required
               />
+              {errors.firstName && <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>}
             </div>
             <div>
               <label className={`block text-sm font-medium mb-1 ${labelCls}`}>
@@ -124,44 +186,48 @@ export default function Registration() {
                 name="lastName"
                 value={form.lastName}
                 onChange={handleChange}
-                className={inputCls}
+                onBlur={handleBlur}
+                className={`${inputCls} ${errors.lastName ? 'border-red-500' : ''}`}
                 placeholder="Last name"
-                required
               />
+              {errors.lastName && <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>}
             </div>
           </div>
 
-          <div className="flex">
-            <span className="inline-flex items-center px-3 bg-gray-100 border border-r-0 border-gray-300 text-gray-500 text-sm">
-              +91
-            </span>
-            <input
-              type="tel"
-              name="mobileNumber"
-              value={form.mobileNumber}
-              onChange={handleChange}
-              className={`${inputCls} rounded-l-none`} 
-              placeholder="Enter your Phone Number" 
-              maxLength="10"
-              pattern="[0-9]{10}"
-              required
-            />
+          <div>
+            <label className={`block text-sm font-medium mb-1 ${labelCls}`}>Phone Number</label>
+            <div className="flex">
+              <span className="inline-flex items-center px-3 bg-gray-100 border border-r-0 border-gray-300 text-gray-500 text-sm">
+                +91
+              </span>
+              <input
+                type="tel"
+                name="mobileNumber"
+                value={form.mobileNumber}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                className={`${inputCls} rounded-l-none ${errors.mobileNumber ? 'border-red-500' : ''}`}
+                placeholder="Enter your Phone Number"
+                maxLength="10"
+              />
+            </div>
+            {errors.mobileNumber && <p className="text-red-500 text-xs mt-1">{errors.mobileNumber}</p>}
           </div>
-
 
           <div>
             <label className={`block text-sm font-medium mb-1 ${labelCls}`}>
               Email Address
             </label>
             <input
-              type="email"
+              type="text"
               name="email"
               value={form.email}
               onChange={handleChange}
-              className={inputCls}
+              onBlur={handleBlur}
+              className={`${inputCls} ${errors.email ? 'border-red-500' : ''}`}
               placeholder="you@example.com"
-              required
             />
+            {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
           </div>
 
           <div>
@@ -173,11 +239,11 @@ export default function Registration() {
               name="password"
               value={form.password}
               onChange={handleChange}
-              className={inputCls}
+              onBlur={handleBlur}
+              className={`${inputCls} ${errors.password ? 'border-red-500' : ''}`}
               placeholder="••••••••"
-              required
-              minLength={6}
             />
+            {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
           </div>
 
           <div>
@@ -189,13 +255,14 @@ export default function Registration() {
               name="confirmPassword"
               value={form.confirmPassword}
               onChange={handleChange}
-              className={inputCls}
+              onBlur={handleBlur}
+              className={`${inputCls} ${errors.confirmPassword ? 'border-red-500' : ''}`}
               placeholder="••••••••"
-              required
             />
+            {errors.confirmPassword && <p className="text-red-500 text-xs mt-1">{errors.confirmPassword}</p>}
           </div>
 
-          {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+          {errors.submit && <p className="text-red-500 text-sm text-center">{errors.submit}</p>}
 
           <button
             type="submit"

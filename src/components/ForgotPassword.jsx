@@ -9,21 +9,52 @@ export default function ForgotPassword() {
   const darkMode = useSelector(selectDarkMode);
   const dispatch = useDispatch();
   const [email, setEmail] = useState('');
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState({});
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const validateField = (name, value) => {
+    const newErrors = { ...errors };
+    if (name === 'email') {
+      if (!value.trim()) {
+        newErrors.email = 'Email is required';
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        newErrors.email = 'Invalid email format';
+      } else {
+        delete newErrors.email;
+      }
+    }
+    setErrors(newErrors);
+  };
+
+  const handleEmailChange = (e) => {
+    setEmail(e.target.value);
+    validateField('email', e.target.value);
+  };
+
+  const handleBlur = () => {
+    validateField('email', email);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setSuccess(false);
+    
+    const newErrors = {};
+    if (!email.trim()) newErrors.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = 'Invalid email format';
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
     setLoading(true);
 
     try {
       await resetPassword(email.trim());
       setSuccess(true);
     } catch (err) {
-      setError(err.message || 'Failed to send reset email');
+      setErrors({ submit: err.message || 'Failed to send reset email' });
     } finally {
       setLoading(false);
     }
@@ -81,17 +112,18 @@ export default function ForgotPassword() {
                 Email
               </label>
               <input
-                type="email"
+                type="text"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className={inputCls}
+                onChange={handleEmailChange}
+                onBlur={handleBlur}
+                className={`${inputCls} ${errors.email ? 'border-red-500' : ''}`}
                 placeholder="you@example.com"
-                required
               />
+              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
             </div>
 
-            {error && (
-              <p className="text-red-500 text-sm text-center">{error}</p>
+            {errors.submit && (
+              <p className="text-red-500 text-sm text-center">{errors.submit}</p>
             )}
 
             <button

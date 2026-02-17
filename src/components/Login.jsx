@@ -10,18 +10,66 @@ export default function Login() {
   const dispatch = useDispatch();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+
+  const validateField = (name, value) => {
+    const newErrors = { ...errors };
+    if (name === 'email') {
+      if (!value.trim()) {
+        newErrors.email = 'Email is required';
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        newErrors.email = 'Invalid email format';
+      } else {
+        delete newErrors.email;
+      }
+    } else if (name === 'password') {
+      if (!value) {
+        newErrors.password = 'Password is required';
+      } else if (value.length < 6) {
+        newErrors.password = 'Password must be at least 6 characters';
+      } else {
+        delete newErrors.password;
+      }
+    }
+    setErrors(newErrors);
+  };
+
+  const handleEmailChange = (e) => {
+    setEmail(e.target.value);
+    validateField('email', e.target.value);
+  };
+
+  const handlePasswordChange = (e) => {
+    setPassword(e.target.value);
+    validateField('password', e.target.value);
+  };
+
+  const handleBlur = (field) => {
+    if (field === 'email') validateField('email', email);
+    else if (field === 'password') validateField('password', password);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    
+    const newErrors = {};
+    if (!email.trim()) newErrors.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = 'Invalid email format';
+    if (!password) newErrors.password = 'Password is required';
+    else if (password.length < 6) newErrors.password = 'Password must be at least 6 characters';
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
     setLoading(true);
 
     try {
       await signIn(email, password);
     } catch (err) {
-      setError(err.message || 'Login failed');
+      setErrors({ submit: err.message || 'Login failed' });
     } finally {
       setLoading(false);
     }
@@ -70,13 +118,14 @@ export default function Login() {
               Email
             </label>
             <input
-              type="email"
+              type="text"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={inputCls}
+              onChange={handleEmailChange}
+              onBlur={() => handleBlur('email')}
+              className={`${inputCls} ${errors.email ? 'border-red-500' : ''}`}
               placeholder="you@example.com"
-              required
             />
+            {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
           </div>
           <div>
             <label className={`block text-sm font-medium mb-1 ${labelCls}`}>
@@ -85,12 +134,12 @@ export default function Login() {
             <input
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={inputCls}
+              onChange={handlePasswordChange}
+              onBlur={() => handleBlur('password')}
+              className={`${inputCls} ${errors.password ? 'border-red-500' : ''}`}
               placeholder="••••••••"
-              required
-              minLength={6}
             />
+            {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
           </div>
 
           <div className="flex justify-end">
@@ -102,8 +151,8 @@ export default function Login() {
             </Link>
           </div>
 
-          {error && (
-            <p className="text-red-500 text-sm text-center">{error}</p>
+          {errors.submit && (
+            <p className="text-red-500 text-sm text-center">{errors.submit}</p>
           )}
 
           <button

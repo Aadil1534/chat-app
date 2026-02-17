@@ -41,12 +41,16 @@ export async function getAdminGroups() {
 
 export async function createAdminGroup(adminId, data) {
   const memberIds = data.memberIds || [];
-  const participants = [adminId, ...memberIds].filter((id, i, arr) => arr.indexOf(id) === i);
+  let participants = [adminId, ...memberIds].filter((id, i, arr) => arr.indexOf(id) === i);
+  // ensure groupAdmin is included in participants
+  const groupAdminId = data.groupAdminId || adminId;
+  if (!participants.includes(groupAdminId)) participants = [groupAdminId, ...participants];
   const newChatRef = doc(collection(db, 'chats'));
   const unreadCounts = {};
   participants.forEach((id) => (unreadCounts[id] = 0));
   await setDoc(newChatRef, {
     participants,
+    groupAdmin: groupAdminId,
     groupName: data.groupName || 'Group',
     projectName: data.projectName || '',
     groupImageURL: data.groupImageURL || null,
@@ -73,6 +77,20 @@ export async function updateAdminGroup(chatId, data) {
     data.participants.forEach((id) => (unreadCounts[id] = 0));
     updates.unreadCounts = unreadCounts;
   }
+  if (data.groupAdminId !== undefined) {
+    updates.groupAdmin = data.groupAdminId;
+    // ensure admin exists in participants
+    if (updates.participants) {
+      if (!updates.participants.includes(data.groupAdminId)) updates.participants.push(data.groupAdminId);
+    } else {
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const cur = snap.data();
+        const parts = cur.participants || [];
+        if (!parts.includes(data.groupAdminId)) updates.participants = [...parts, data.groupAdminId];
+      }
+    }
+  }
   if (Object.keys(updates).length) await updateDoc(ref, updates);
 }
 
@@ -80,12 +98,18 @@ export async function deleteAdminGroup(chatId) {
   await deleteDoc(doc(db, 'chats', chatId));
 }
 
-export async function addMemberToAdminGroup(chatId, userId) {
+export async function addMemberToAdminGroup(chatId, userId, callerId) {
   const chatRef = doc(db, 'chats', chatId);
   const snap = await getDoc(chatRef);
   if (!snap.exists()) return;
   const data = snap.data();
   const participants = data.participants || [];
+  // permission: caller must be global admin or group admin
+  if (callerId) {
+    const callerIsGlobalAdmin = await isAdmin(callerId);
+    const callerIsGroupAdmin = data.groupAdmin === callerId;
+    if (!callerIsGlobalAdmin && !callerIsGroupAdmin) throw new Error('Not authorized to add members');
+  }
   if (participants.includes(userId)) return;
   await updateDoc(chatRef, {
     participants: [...participants, userId],
@@ -93,12 +117,20 @@ export async function addMemberToAdminGroup(chatId, userId) {
   });
 }
 
-export async function removeMemberFromAdminGroup(chatId, userId) {
+export async function removeMemberFromAdminGroup(chatId, userId, callerId) {
   const chatRef = doc(db, 'chats', chatId);
   const snap = await getDoc(chatRef);
   if (!snap.exists()) return;
   const data = snap.data();
   const participants = (data.participants || []).filter((id) => id !== userId);
+  // permission: caller must be global admin or group admin
+  if (callerId) {
+    const callerIsGlobalAdmin = await isAdmin(callerId);
+    const callerIsGroupAdmin = data.groupAdmin === callerId;
+    if (!callerIsGlobalAdmin && !callerIsGroupAdmin) throw new Error('Not authorized to remove members');
+  }
+  // prevent removing the group admin via this call
+  if (data.groupAdmin === userId) throw new Error('Cannot remove group admin. Reassign admin first.');
   const unreadCounts = { ...data.unreadCounts };
   delete unreadCounts[userId];
   await updateDoc(chatRef, { participants, unreadCounts });
